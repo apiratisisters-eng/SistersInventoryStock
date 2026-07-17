@@ -451,7 +451,12 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <input type="hidden" id="ac-id"><input type="hidden" id="ac-barcode"><input type="hidden" id="ac-name"><input type="hidden" id="ac-lot"><input type="hidden" id="ac-exp"><input type="hidden" id="ac-status">
+          <input type="hidden" id="ac-id">
+          <input type="hidden" id="ac-barcode">
+          <input type="hidden" id="ac-name">
+          <input type="hidden" id="ac-lot">
+          <input type="hidden" id="ac-exp">
+          <input type="hidden" id="ac-status">
           <label class="fw-bold text-dark">ระบุรายละเอียดการจัดการ:</label>
           <textarea id="ac-note" class="form-control mt-2" rows="4" placeholder="เช่น ส่งคืนบริษัท, ทำลายทิ้ง, เปลี่ยนจุดวาง..."></textarea>
         </div>
@@ -483,15 +488,6 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
   <script>
-    // ⚠️ ข้อควรระวังเรื่อง Google Sheets: 
-    // กรุณาเตรียมชีตและตั้งชื่อหัวคอลัมน์ (แถวที่ 1) ให้เป็นภาษาอังกฤษตามนี้เป๊ะๆ:
-    //
-    // ชีต "loginHistory" : date | username | status
-    // ชีต "transactions" : date | type | barcode | name | lot | exp | qty | note | user
-    // ชีต "inventory"    : barcode | name | lot | exp
-    // ชีต "actions"      : date | barcode | lot | status | managedType | managedNote | user
-    // ชีต "users"        : username | password | displayName | role
-
     const SHEETY_API_URL = "https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8"; 
 
     let currentUser = '';
@@ -567,9 +563,11 @@
       
       try {
         let response = await fetch(`${SHEETY_API_URL}/users`);
+        if (!response.ok) throw new Error('API Error');
         let data = await response.json();
         
-        let foundUser = data.users.find(user => user.username === u && user.password === p);
+        // Fix 1: แปลงเป็น String เสมอเพื่อป้องกันบั๊ก Google Sheet ปรับตัวเลขรหัสผ่านไปเป็น Int
+        let foundUser = data.users.find(user => String(user.username) === String(u) && String(user.password) === String(p));
         
         if(foundUser) {
           currentUser = foundUser.username;
@@ -603,7 +601,7 @@
           Swal.fire('Error', 'Username หรือ Password ไม่ถูกต้อง', 'error');
         }
       } catch (error) {
-        Swal.fire('Error', 'เกิดปัญหาการเชื่อมต่อกับฐานข้อมูล (Sheety)', 'error');
+        Swal.fire('Error', 'เกิดปัญหาการเชื่อมต่อฐานข้อมูล กรุณาเช็ค API หรือข้อจำกัดโควต้า Sheety', 'error');
       }
     }
 
@@ -642,6 +640,7 @@
       
       try {
         let response = await fetch(`${SHEETY_API_URL}/inventory`);
+        if (!response.ok) throw new Error('API Error');
         let data = await response.json();
         
         let foundItems = (data.inventory || []).filter(item => String(item.barcode) === String(bc));
@@ -699,7 +698,6 @@
       Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        // 1. ดึงข้อมูล Inventory และ Transactions มาตรวจสอบยอดคงเหลือ
         let resTrans = await fetch(`${SHEETY_API_URL}/transactions`);
         let dataTrans = await resTrans.json();
         
@@ -717,27 +715,17 @@
           return;
         }
 
-        // 2. บันทึก Transaction ใหม่ (POST)
         await fetch(`${SHEETY_API_URL}/transactions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             transaction: { 
-              date: date, 
-              type: type, 
-              barcode: barcode, 
-              name: productName, 
-              lot: lotNo, 
-              exp: expDate, 
-              qty: qty, 
-              note: note, 
-              user: currentUser 
+              date: date, type: type, barcode: barcode, name: productName, 
+              lot: lotNo, exp: expDate, qty: qty, note: note, user: currentUser 
             }
           })
         });
 
-        // 3. ตรวจสอบว่ามีรายการสินค้านี้ใน Inventory (Master) หรือไม่ 
-        // ถ้าเป็นรับเข้า (IN) ครั้งแรก ให้เพิ่มรายชื่อเข้าไปใน Inventory โดยบันทึกแค่ 4 ฟิลด์ตามกำหนด
         if (type === 'IN') {
           let resInv = await fetch(`${SHEETY_API_URL}/inventory`);
           let dataInv = await resInv.json();
@@ -748,12 +736,7 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
-                inventory: { 
-                  barcode: barcode, 
-                  name: productName, 
-                  lot: lotNo, 
-                  exp: expDate
-                }
+                inventory: { barcode: barcode, name: productName, lot: lotNo, exp: expDate }
               })
             });
           }
@@ -775,14 +758,31 @@
       }
     }
 
+    // Fix 2: แก้บั๊กวันที่หากผู้ใช้งานใส่ Date เป็นรูปแบบไทยใน Google Sheet ให้แปลงค่าได้ถูกต้อง
     function calculateDays(expDateStr) {
       if(!expDateStr) return 999;
-      let exp = new Date(expDateStr);
+      let exp;
+      if (expDateStr.includes('/')) {
+        let parts = expDateStr.split(' ')[0].split('/'); // รองรับทั้ง DD/MM/YYYY และ DD/MM/YYYY HH:MM
+        if(parts.length === 3) {
+            // สมมติฐานว่า Format คือ วัน/เดือน/ปี
+            exp = new Date(parts[2], parts[1] - 1, parts[0]);
+        } else {
+            exp = new Date(expDateStr);
+        }
+      } else {
+        exp = new Date(expDateStr);
+      }
+      
       let today = new Date();
+      // เซ็ตเวลาให้เป็นเที่ยงคืนตรง เพื่อตัดปัญหาเศษชั่วโมง
+      today.setHours(0,0,0,0);
+      exp.setHours(0,0,0,0);
       return Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
     }
 
     function determineStatus(days) {
+      if(isNaN(days)) return 'Unknown'; // ดักจับ Error หากแปลงวันไม่ได้
       if(days < 0) return 'Expired';
       if(days <= 30) return 'Critical';
       if(days <= 90) return 'Near Expiry';
@@ -794,12 +794,13 @@
       Swal.fire({ title: 'กำลังโหลดข้อมูลล่าสุด...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        // ใช้ Promise.all โหลดทุกชีตพร้อมกันเพื่อความรวดเร็ว
         let [resInv, resTrans, resActions] = await Promise.all([
           fetch(`${SHEETY_API_URL}/inventory`),
           fetch(`${SHEETY_API_URL}/transactions`),
-          fetch(`${SHEETY_API_URL}/actions`).catch(() => null) // Fallback ถ้ายังไม่ได้สร้างชีต actions
+          fetch(`${SHEETY_API_URL}/actions`).catch(() => null)
         ]);
+
+        if(!resInv.ok || !resTrans.ok) throw new Error("API Limit Reached or Database Missing");
         
         let dataInv = await resInv.json();
         let dataTrans = await resTrans.json();
@@ -810,7 +811,6 @@
            dataActions = actionsJson.actions || [];
         }
 
-        // คำนวณ QTY โดยตรงจาก Transactions แบบ Real-time
         let lotQtyMap = {};
         currentTotalIn = 0;
         currentTotalOut = 0;
@@ -833,20 +833,12 @@
            let currentStatus = determineStatus(d);
            let qty = lotQtyMap[String(item.barcode) + "_" + String(item.lot)] || 0;
            
-           // ดึงข้อมูลการจัดการของสินค้านั้น ๆ โดยกรองให้ "ตรงกับสถานะปัจจุบัน" เท่านั้น 
-           // หากสถานะเปลี่ยน การจัดการเดิมจะไม่ถูกดึงมา ทำให้ขึ้นว่า "รอดำเนินการ"
            let lotActions = dataActions.filter(a => String(a.barcode) === String(item.barcode) && String(a.lot) === String(item.lot) && String(a.status) === String(currentStatus));
            let latestAction = lotActions.length > 0 ? lotActions[lotActions.length - 1] : null;
 
            return {
-             id: item.id,
-             barcode: item.barcode,
-             name: item.name,
-             lot: item.lot,
-             exp: item.exp,
-             qty: qty,
-             days: d,
-             status: currentStatus,
+             id: item.id, barcode: item.barcode, name: item.name, lot: item.lot, exp: item.exp,
+             qty: qty, days: d, status: currentStatus,
              managedType: latestAction ? latestAction.managedType : '',
              managedNote: latestAction ? latestAction.managedNote : '',
              managedUser: latestAction ? latestAction.user : ''
@@ -859,7 +851,7 @@
         Swal.close();
       } catch (e) {
          console.error(e);
-         Swal.fire('Error', 'ไม่สามารถเชื่อมต่อดึงข้อมูลได้', 'error');
+         Swal.fire('Error', 'ไม่สามารถเชื่อมต่อดึงข้อมูลได้ (อาจเกินโควต้า Sheety ฟรี)', 'error');
       }
     }
 
@@ -915,7 +907,8 @@
       tbody.innerHTML = '';
       currentInventoryData.forEach(item => {
         let badgeClass = getBadgeClass(item.status);
-        tbody.innerHTML += `<tr><td>${item.barcode}</td><td class="fw-bold">${item.name}</td><td>${item.lot}</td><td>${item.exp}</td><td class="text-primary fw-bold text-center">${item.qty}</td><td>${item.days} วัน</td><td><span class="badge ${badgeClass} px-3 py-2">${item.status}</span></td></tr>`;
+        let statusDays = isNaN(item.days) ? '-' : item.days + ' วัน';
+        tbody.innerHTML += `<tr><td>${item.barcode}</td><td class="fw-bold">${item.name}</td><td>${item.lot}</td><td>${item.exp}</td><td class="text-primary fw-bold text-center">${item.qty}</td><td>${statusDays}</td><td><span class="badge ${badgeClass} px-3 py-2">${item.status}</span></td></tr>`;
       });
     }
 
@@ -935,9 +928,11 @@
             if (currentUserRole === 'Viewer') {
               actionBtns = `<span class="text-muted"><i class="bi bi-clock-history"></i> รอดำเนินการ</span>`;
             } else {
+              // เปลี่ยนเครื่องหมายคำพูด (Quotes) เพื่อไม่ให้บั๊กเวลาชื่อสินค้าเว้นวรรค
+              let escName = item.name.replace(/'/g, "\\'");
               actionBtns = `
-                <button class="btn btn-sm btn-info text-white me-1 fw-bold" onclick="doAction('${item.id}', '${item.barcode}', '${item.name}', '${item.lot}', '${item.exp}', '${item.status}', 'รับทราบ')">รับทราบ</button>
-                <button class="btn btn-sm btn-warning fw-bold" onclick="openManageModal('${item.id}', '${item.barcode}', '${item.name}', '${item.lot}', '${item.exp}', '${item.status}')">จัดการ</button>
+                <button class="btn btn-sm btn-info text-white me-1 fw-bold" onclick="doAction('${item.id}', '${item.barcode}', '${escName}', '${item.lot}', '${item.exp}', '${item.status}', 'รับทราบ')">รับทราบ</button>
+                <button class="btn btn-sm btn-warning fw-bold" onclick="openManageModal('${item.id}', '${item.barcode}', '${escName}', '${item.lot}', '${item.exp}', '${item.status}')">จัดการ</button>
               `;
             }
           }
@@ -1032,23 +1027,29 @@
       }
     }
 
+    // Fix 3: เพิ่มการส่งค่า name และ exp ลงใน Input เพื่อให้ API บันทึกได้ครบถ้วน ไม่ Error
     function doAction(id, barcode, name, lot, exp, status, type) {
+      document.getElementById('ac-id').value = id;
       document.getElementById('ac-barcode').value = barcode;
+      document.getElementById('ac-name').value = name;
       document.getElementById('ac-lot').value = lot;
+      document.getElementById('ac-exp').value = exp;
       document.getElementById('ac-status').value = status; 
       document.getElementById('ac-note').value = '-';
       submitAction(type);
     }
 
     function openManageModal(id, barcode, name, lot, exp, status) {
+      document.getElementById('ac-id').value = id;
       document.getElementById('ac-barcode').value = barcode;
+      document.getElementById('ac-name').value = name;
       document.getElementById('ac-lot').value = lot;
+      document.getElementById('ac-exp').value = exp;
       document.getElementById('ac-status').value = status; 
       document.getElementById('ac-note').value = '';
       new bootstrap.Modal(document.getElementById('actionModal')).show();
     }
 
-    // --- FETCH: บันทึกข้อมูลการจัดการเป็นแถวใหม่ลงในชีต Actions (POST) ---
     async function submitAction(type) {
     let barcode = document.getElementById('ac-barcode').value;
     let name = document.getElementById('ac-name').value;
@@ -1060,7 +1061,7 @@
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
     
     try {
-      await fetch(`${SHEETY_API_URL}/actions`, {
+      let res = await fetch(`${SHEETY_API_URL}/actions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1078,12 +1079,14 @@
         })
       });
 
+      if (!res.ok) throw new Error("API Limit หรือไม่มีชีต Actions");
+
       Swal.fire('สำเร็จ', 'บันทึกการจัดการเรียบร้อย', 'success');
       let modal = bootstrap.Modal.getInstance(document.getElementById('actionModal'));
       if(modal) modal.hide();
       loadInventory(); 
     } catch(e) {
-      Swal.fire('ข้อผิดพลาด', 'อัปเดตข้อมูลไม่สำเร็จ กรุณาเช็คชื่อหัวคอลัมน์ในชีต actions ให้ตรงตามที่ระบุ', 'error');
+      Swal.fire('ข้อผิดพลาด', 'อัปเดตข้อมูลไม่สำเร็จ กรุณาเช็คว่าสร้างชีต actions หรือโควต้า Sheety เต็มหรือไม่', 'error');
     }
   }
 
@@ -1097,6 +1100,7 @@
       
       try {
         let res = await fetch(`${SHEETY_API_URL}/transactions`);
+        if (!res.ok) throw new Error("API Limit");
         let data = await res.json();
         
         let searchKeyword = document.getElementById('reportSearchInput').value.toLowerCase().trim();
@@ -1149,8 +1153,9 @@
 
             let typeColor = r.type === 'IN' ? 'text-success' : 'text-danger';
             let typeIcon = r.type === 'IN' ? '<i class="bi bi-box-arrow-in-down"></i>' : '<i class="bi bi-box-arrow-up"></i>';
+            let formattedDate = r.date ? String(r.date).substring(0,10) : '-';
             
-            tbody.innerHTML += `<tr><td>${String(r.date).substring(0,10)}</td><td class="fw-bold ${typeColor}">${typeIcon} ${r.type}</td><td>${r.barcode}</td><td class="fw-bold">${r.name}</td><td>${r.lot}</td><td class="text-center fw-bold ${qtyColor}">${displayQty}</td><td class="text-center fw-bold text-primary">${r.runningBalance}</td><td>${r.user}</td></tr>`;
+            tbody.innerHTML += `<tr><td>${formattedDate}</td><td class="fw-bold ${typeColor}">${typeIcon} ${r.type}</td><td>${r.barcode}</td><td class="fw-bold">${r.name}</td><td>${r.lot}</td><td class="text-center fw-bold ${qtyColor}">${displayQty}</td><td class="text-center fw-bold text-primary">${r.runningBalance}</td><td>${r.user}</td></tr>`;
           }
         });
         
@@ -1219,7 +1224,8 @@
             if (item && item.days <= 180) {
               let actStatus = item.managedType ? `จัดการแล้ว (${item.managedType})` : 'ยังไม่จัดการ';
               if(item.managedNote && item.managedNote !== '-') actStatus += `<br><small style="color: #666;">รายละเอียด: ${item.managedNote}</small>`;
-              let statusDisplay = `<b>${item.status}</b><br><small style="color: #666;">(เหลือ ${item.days} วัน)</small>`;
+              let statusDays = isNaN(item.days) ? '-' : item.days;
+              let statusDisplay = `<b>${item.status}</b><br><small style="color: #666;">(เหลือ ${statusDays} วัน)</small>`;
               let userDisplay = item.managedUser ? item.managedUser : '-';
 
               tbodyHtml += `<tr><td>${item.barcode}</td><td><b>${item.name}</b></td><td>${item.lot}</td><td>${item.exp}</td><td style="text-align: center; color: #dc3545; font-weight: bold;">${item.qty}</td><td>${statusDisplay}</td><td>${actStatus}</td><td>${userDisplay}</td></tr>`;
