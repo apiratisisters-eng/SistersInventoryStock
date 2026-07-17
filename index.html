@@ -483,15 +483,6 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
   <script>
-    // ⚠️ ข้อควรระวังเรื่อง Google Sheets: 
-    // เพื่อให้ตัวโค้ดนี้ทำงานกับ Sheety ได้อย่างสมบูรณ์แบบ 100% 
-    // กรุณาเปลี่ยน "ชื่อหัวคอลัมน์" (แถวที่ 1 ของทุกชีต) ให้เป็นตัวพิมพ์เล็กภาษาอังกฤษดังนี้
-    //
-    // ชีต "loginHistory" : date | username | status
-    // ชีต "transactions" : date | type | barcode | name | lot | exp | qty | note | user
-    // ชีต "inventory"    : barcode | name | lot | exp | qty | managedType | managedNote | managedUser
-    // ชีต "users"        : username | password | displayName | role
-
     const SHEETY_API_URL = "https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8"; 
 
     let currentUser = '';
@@ -588,7 +579,6 @@
           applyPermissions(); 
           loadInventory();
 
-          // บันทึกประวัติ Login สำเร็จ
           await fetch(`${SHEETY_API_URL}/loginHistory`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -597,7 +587,6 @@
 
           Swal.close();
         } else {
-          // บันทึกประวัติ Login พลาด
           await fetch(`${SHEETY_API_URL}/loginHistory`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -704,7 +693,6 @@
       Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        // 1. บันทึก Transaction
         await fetch(`${SHEETY_API_URL}/transactions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -723,14 +711,12 @@
           })
         });
 
-        // 2. ไปอัปเดตยอดคงเหลือในชีต Inventory
         let resInv = await fetch(`${SHEETY_API_URL}/inventory`);
         let dataInv = await resInv.json();
         
         let existingItem = dataInv.inventory.find(item => String(item.barcode) === String(barcode) && String(item.lot) === String(lotNo));
 
         if (existingItem) {
-          // หากมีอยู่แล้ว -> อัปเดต (PUT)
           let currentQty = parseInt(existingItem.qty) || 0;
           let newQty = (type === 'IN') ? currentQty + qty : currentQty - qty;
 
@@ -745,7 +731,6 @@
              body: JSON.stringify({ inventory: { qty: newQty } })
           });
         } else {
-          // หากยังไม่มี -> เพิ่มแถวใหม่ (POST)
           if (type === 'OUT') {
             Swal.fire('Error', 'ไม่พบสินค้ารายการนี้ในคลัง ไม่สามารถเบิกออกได้', 'error');
             return;
@@ -1082,7 +1067,6 @@
         tbody.innerHTML = '';
         let currentTotalQty = 0;
 
-        // 1. คำนวณยอดสะสมจากประวัติทั้งหมด โดยใช้ ชื่อสินค้า + Lot เป็น Key
         let balances = {};
         data.transactions.forEach(r => {
            let key = r.name + "_" + r.lot;
@@ -1094,10 +1078,9 @@
            } else if (r.type === 'OUT') {
                balances[key] -= itemQty;
            }
-           r.runningBalance = balances[key]; // เก็บยอดคงเหลือบรรทัดนี้ไว้
+           r.runningBalance = balances[key]; 
         });
 
-        // 2. กรองข้อมูลตามวันที่ที่กำหนด
         let filteredData = data.transactions.filter(r => {
            let rDate = new Date(r.date);
            return rDate >= st && rDate <= en;
@@ -1130,7 +1113,6 @@
             let typeColor = r.type === 'IN' ? 'text-success' : 'text-danger';
             let typeIcon = r.type === 'IN' ? '<i class="bi bi-box-arrow-in-down"></i>' : '<i class="bi bi-box-arrow-up"></i>';
             
-            // อัปเดตช่องคงเหลือเป็น r.runningBalance แทนเครื่องหมาย "-"
             tbody.innerHTML += `<tr><td>${String(r.date).substring(0,10)}</td><td class="fw-bold ${typeColor}">${typeIcon} ${r.type}</td><td>${r.barcode}</td><td class="fw-bold">${r.name}</td><td>${r.lot}</td><td class="text-center fw-bold ${qtyColor}">${displayQty}</td><td class="text-center fw-bold text-primary">${r.runningBalance}</td><td>${r.user}</td></tr>`;
           }
         });
@@ -1185,16 +1167,34 @@
       document.getElementById('pdf-thead').innerHTML = `<tr><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>Lot No.</th><th>หมดอายุ</th><th style="text-align: center;">จำนวน</th><th>สถานะสินค้า (เหลือเวลา)</th><th>การจัดการ</th><th>ผู้บันทึก</th></tr>`;
         
       let tbodyHtml = '';
-      currentInventoryData.forEach(item => {
-        if(item.days <= 180) {
-          let actStatus = item.managedType ? `จัดการแล้ว (${item.managedType})` : 'ยังไม่จัดการ';
-          if(item.managedNote && item.managedNote !== '-') actStatus += `<br><small style="color: #666;">รายละเอียด: ${item.managedNote}</small>`;
-          let statusDisplay = `<b>${item.status}</b><br><small style="color: #666;">(เหลือ ${item.days} วัน)</small>`;
-          let userDisplay = item.managedUser ? item.managedUser : '-';
+      
+      // ดึงแถวข้อมูลทั้งหมดจากตารางที่แสดงอยู่
+      let trs = document.getElementById('alert-tbody').getElementsByTagName('tr');
 
-          tbodyHtml += `<tr><td>${item.barcode}</td><td><b>${item.name}</b></td><td>${item.lot}</td><td>${item.exp}</td><td style="text-align: center; color: #dc3545; font-weight: bold;">${item.qty}</td><td>${statusDisplay}</td><td>${actStatus}</td><td>${userDisplay}</td></tr>`;
+      // ตรวจสอบทีละแถวว่าถูกซ่อนจากการค้นหาหรือไม่
+      for (let i = 0; i < trs.length; i++) {
+        if (trs[i].style.display !== 'none') {
+          let tds = trs[i].getElementsByTagName('td');
+          if (tds.length > 0) {
+            // ดึง Barcode และ Lot No. จากคอลัมน์ในตาราง
+            let rowBarcode = tds[0].innerText.trim();
+            let rowLot = tds[2].innerText.trim();
+
+            // นำไปจับคู่กับข้อมูลหลักใน currentInventoryData
+            let item = currentInventoryData.find(v => String(v.barcode) === String(rowBarcode) && String(v.lot) === String(rowLot));
+            
+            if (item && item.days <= 180) {
+              let actStatus = item.managedType ? `จัดการแล้ว (${item.managedType})` : 'ยังไม่จัดการ';
+              if(item.managedNote && item.managedNote !== '-') actStatus += `<br><small style="color: #666;">รายละเอียด: ${item.managedNote}</small>`;
+              let statusDisplay = `<b>${item.status}</b><br><small style="color: #666;">(เหลือ ${item.days} วัน)</small>`;
+              let userDisplay = item.managedUser ? item.managedUser : '-';
+
+              tbodyHtml += `<tr><td>${item.barcode}</td><td><b>${item.name}</b></td><td>${item.lot}</td><td>${item.exp}</td><td style="text-align: center; color: #dc3545; font-weight: bold;">${item.qty}</td><td>${statusDisplay}</td><td>${actStatus}</td><td>${userDisplay}</td></tr>`;
+            }
+          }
         }
-      });
+      }
+
       document.getElementById('pdf-tbody').innerHTML = tbodyHtml;
       document.getElementById('pdf-tfoot').innerHTML = ''; 
       generatePDF('Alert_Stock_Report');
