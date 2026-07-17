@@ -483,6 +483,15 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
   <script>
+    // ⚠️ ข้อควรระวังเรื่อง Google Sheets: 
+    // กรุณาเตรียมชีตและตั้งชื่อหัวคอลัมน์ (แถวที่ 1) ให้เป็นภาษาอังกฤษตามนี้เป๊ะๆ:
+    //
+    // ชีต "loginHistory" : date | username | status
+    // ชีต "transactions" : date | type | barcode | name | lot | exp | qty | note | user
+    // ชีต "inventory"    : barcode | name | lot | exp
+    // ชีต "actions"      : date | barcode | lot | status | managedType | managedNote | user
+    // ชีต "users"        : username | password | displayName | role
+
     const SHEETY_API_URL = "https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8"; 
 
     let currentUser = '';
@@ -549,7 +558,6 @@
       }
     }
 
-    // --- FETCH: ดึงข้อมูล Users จาก Sheety เพื่อเช็ค Login ---
     async function login() {
       let u = document.getElementById('login-user').value;
       let p = document.getElementById('login-pass').value;
@@ -626,7 +634,6 @@
       el.classList.add('active');
     }
 
-    // --- FETCH: ค้นหาสินค้าจากชีต Inventory ---
     async function fetchProductDetails() {
       let bc = document.getElementById('t-barcode').value;
       if(!bc) return;
@@ -637,7 +644,7 @@
         let response = await fetch(`${SHEETY_API_URL}/inventory`);
         let data = await response.json();
         
-        let foundItems = data.inventory.filter(item => String(item.barcode) === String(bc));
+        let foundItems = (data.inventory || []).filter(item => String(item.barcode) === String(bc));
         
         Swal.close();
         if(foundItems.length > 0) {
@@ -675,7 +682,6 @@
       if (found) document.getElementById('t-exp').value = found.exp;
     }
 
-    // --- FETCH: บันทึกข้อมูลไปชีต Transactions (และบวก/ลบ Inventory) ---
     async function saveTransaction() {
       let type = document.getElementById('t-type').value;
       let date = document.getElementById('t-date').value;
@@ -693,6 +699,25 @@
       Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
+        // 1. ดึงข้อมูล Inventory และ Transactions มาตรวจสอบยอดคงเหลือ
+        let resTrans = await fetch(`${SHEETY_API_URL}/transactions`);
+        let dataTrans = await resTrans.json();
+        
+        let currentQty = 0;
+        (dataTrans.transactions || []).forEach(t => {
+           if (String(t.barcode) === String(barcode) && String(t.lot) === String(lotNo)) {
+               let tQty = parseInt(t.qty) || 0;
+               if (t.type === 'IN') currentQty += tQty;
+               if (t.type === 'OUT') currentQty -= tQty;
+           }
+        });
+
+        if (type === 'OUT' && currentQty < qty) {
+          Swal.fire('Error', 'ยอดคงเหลือไม่เพียงพอสำหรับการเบิกออก', 'error');
+          return;
+        }
+
+        // 2. บันทึก Transaction ใหม่ (POST)
         await fetch(`${SHEETY_API_URL}/transactions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -711,44 +736,27 @@
           })
         });
 
-        let resInv = await fetch(`${SHEETY_API_URL}/inventory`);
-        let dataInv = await resInv.json();
-        
-        let existingItem = dataInv.inventory.find(item => String(item.barcode) === String(barcode) && String(item.lot) === String(lotNo));
+        // 3. ตรวจสอบว่ามีรายการสินค้านี้ใน Inventory (Master) หรือไม่ 
+        // ถ้าเป็นรับเข้า (IN) ครั้งแรก ให้เพิ่มรายชื่อเข้าไปใน Inventory โดยบันทึกแค่ 4 ฟิลด์ตามกำหนด
+        if (type === 'IN') {
+          let resInv = await fetch(`${SHEETY_API_URL}/inventory`);
+          let dataInv = await resInv.json();
+          let existingItem = (dataInv.inventory || []).find(item => String(item.barcode) === String(barcode) && String(item.lot) === String(lotNo));
 
-        if (existingItem) {
-          let currentQty = parseInt(existingItem.qty) || 0;
-          let newQty = (type === 'IN') ? currentQty + qty : currentQty - qty;
-
-          if (newQty < 0) {
-            Swal.fire('Error', 'ยอดคงเหลือไม่เพียงพอสำหรับการเบิกออก', 'error');
-            return;
+          if (!existingItem) {
+            await fetch(`${SHEETY_API_URL}/inventory`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                inventory: { 
+                  barcode: barcode, 
+                  name: productName, 
+                  lot: lotNo, 
+                  exp: expDate
+                }
+              })
+            });
           }
-
-          await fetch(`${SHEETY_API_URL}/inventory/${existingItem.id}`, {
-             method: 'PUT',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ inventory: { qty: newQty } })
-          });
-        } else {
-          if (type === 'OUT') {
-            Swal.fire('Error', 'ไม่พบสินค้ารายการนี้ในคลัง ไม่สามารถเบิกออกได้', 'error');
-            return;
-          }
-
-          await fetch(`${SHEETY_API_URL}/inventory`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              inventory: { 
-                barcode: barcode, 
-                name: productName, 
-                lot: lotNo, 
-                exp: expDate, 
-                qty: qty 
-              }
-            })
-          });
         }
 
         Swal.fire('สำเร็จ', 'บันทึกข้อมูลและอัปเดตสต็อกเรียบร้อย', 'success');
@@ -767,7 +775,6 @@
       }
     }
 
-    // --- Helper ---
     function calculateDays(expDateStr) {
       if(!expDateStr) return 999;
       let exp = new Date(expDateStr);
@@ -783,40 +790,66 @@
       return 'Normal';
     }
 
-    // --- FETCH: โหลดข้อมูล Inventory ---
     async function loadInventory() {
       Swal.fire({ title: 'กำลังโหลดข้อมูลล่าสุด...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        let resInv = await fetch(`${SHEETY_API_URL}/inventory`);
-        let dataInv = await resInv.json();
+        // ใช้ Promise.all โหลดทุกชีตพร้อมกันเพื่อความรวดเร็ว
+        let [resInv, resTrans, resActions] = await Promise.all([
+          fetch(`${SHEETY_API_URL}/inventory`),
+          fetch(`${SHEETY_API_URL}/transactions`),
+          fetch(`${SHEETY_API_URL}/actions`).catch(() => null) // Fallback ถ้ายังไม่ได้สร้างชีต actions
+        ]);
         
-        let resTrans = await fetch(`${SHEETY_API_URL}/transactions`);
+        let dataInv = await resInv.json();
         let dataTrans = await resTrans.json();
+        
+        let dataActions = [];
+        if (resActions && resActions.ok) {
+           let actionsJson = await resActions.json();
+           dataActions = actionsJson.actions || [];
+        }
 
+        // คำนวณ QTY โดยตรงจาก Transactions แบบ Real-time
+        let lotQtyMap = {};
         currentTotalIn = 0;
         currentTotalOut = 0;
-        dataTrans.transactions.forEach(t => {
-           if(t.type === 'IN') currentTotalIn += (t.qty || 0);
-           if(t.type === 'OUT') currentTotalOut += (t.qty || 0);
+        
+        (dataTrans.transactions || []).forEach(t => {
+           let itemQty = parseInt(t.qty) || 0;
+           if(t.type === 'IN') currentTotalIn += itemQty;
+           if(t.type === 'OUT') currentTotalOut += itemQty;
+           
+           let key = String(t.barcode) + "_" + String(t.lot);
+           if (lotQtyMap[key] === undefined) lotQtyMap[key] = 0;
+           if (t.type === 'IN') lotQtyMap[key] += itemQty;
+           if (t.type === 'OUT') lotQtyMap[key] -= itemQty;
         });
 
-        currentTotalProducts = dataInv.inventory.length;
+        currentTotalProducts = (dataInv.inventory || []).length;
 
-        currentInventoryData = dataInv.inventory.map(item => {
+        currentInventoryData = (dataInv.inventory || []).map(item => {
            let d = calculateDays(item.exp);
+           let currentStatus = determineStatus(d);
+           let qty = lotQtyMap[String(item.barcode) + "_" + String(item.lot)] || 0;
+           
+           // ดึงข้อมูลการจัดการของสินค้านั้น ๆ โดยกรองให้ "ตรงกับสถานะปัจจุบัน" เท่านั้น 
+           // หากสถานะเปลี่ยน การจัดการเดิมจะไม่ถูกดึงมา ทำให้ขึ้นว่า "รอดำเนินการ"
+           let lotActions = dataActions.filter(a => String(a.barcode) === String(item.barcode) && String(a.lot) === String(item.lot) && String(a.status) === String(currentStatus));
+           let latestAction = lotActions.length > 0 ? lotActions[lotActions.length - 1] : null;
+
            return {
              id: item.id,
              barcode: item.barcode,
              name: item.name,
              lot: item.lot,
              exp: item.exp,
-             qty: item.qty,
+             qty: qty,
              days: d,
-             status: determineStatus(d),
-             managedType: item.managedType || '',
-             managedNote: item.managedNote || '',
-             managedUser: item.managedUser || ''
+             status: currentStatus,
+             managedType: latestAction ? latestAction.managedType : '',
+             managedNote: latestAction ? latestAction.managedNote : '',
+             managedUser: latestAction ? latestAction.user : ''
            };
         });
 
@@ -825,6 +858,7 @@
         renderAlertTable();
         Swal.close();
       } catch (e) {
+         console.error(e);
          Swal.fire('Error', 'ไม่สามารถเชื่อมต่อดึงข้อมูลได้', 'error');
       }
     }
@@ -912,7 +946,6 @@
       });
     }
 
-    // --- FETCH: โหลดข้อมูล Users และ Login History ---
     async function loadUsers() {
       if (currentUserRole !== 'Admin') return;
       Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
@@ -1000,55 +1033,59 @@
     }
 
     function doAction(id, barcode, name, lot, exp, status, type) {
-      document.getElementById('ac-id').value = id;
       document.getElementById('ac-barcode').value = barcode;
-      document.getElementById('ac-name').value = name;
       document.getElementById('ac-lot').value = lot;
-      document.getElementById('ac-exp').value = exp;
       document.getElementById('ac-status').value = status; 
       document.getElementById('ac-note').value = '-';
       submitAction(type);
     }
 
     function openManageModal(id, barcode, name, lot, exp, status) {
-      document.getElementById('ac-id').value = id;
       document.getElementById('ac-barcode').value = barcode;
-      document.getElementById('ac-name').value = name;
       document.getElementById('ac-lot').value = lot;
-      document.getElementById('ac-exp').value = exp;
       document.getElementById('ac-status').value = status; 
       document.getElementById('ac-note').value = '';
       new bootstrap.Modal(document.getElementById('actionModal')).show();
     }
 
-    // --- FETCH: บันทึกการกระทำลงในชีต Inventory (PUT) ---
+    // --- FETCH: บันทึกข้อมูลการจัดการเป็นแถวใหม่ลงในชีต Actions (POST) ---
     async function submitAction(type) {
-      let rowId = document.getElementById('ac-id').value;
-      let note = document.getElementById('ac-note').value;
-      
-      Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
-      
-      try {
-        await fetch(`${SHEETY_API_URL}/inventory/${rowId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            inventory: {
-              managedType: type,
-              managedNote: note,
-              managedUser: currentUser
-            }
-          })
-        });
+    let barcode = document.getElementById('ac-barcode').value;
+    let name = document.getElementById('ac-name').value;
+    let lot = document.getElementById('ac-lot').value;
+    let exp = document.getElementById('ac-exp').value;
+    let status = document.getElementById('ac-status').value;
+    let note = document.getElementById('ac-note').value;
+    
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+    
+    try {
+      await fetch(`${SHEETY_API_URL}/actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: {
+            date: new Date().toISOString(),
+            barcode: barcode,
+            name: name,
+            lot: lot,
+            exp: exp,
+            managedType: type,
+            managedNote: note,
+            status: status,
+            user: currentUser
+          }
+        })
+      });
 
-        Swal.fire('สำเร็จ', 'บันทึกการจัดการเรียบร้อย', 'success');
-        let modal = bootstrap.Modal.getInstance(document.getElementById('actionModal'));
-        if(modal) modal.hide();
-        loadInventory(); 
-      } catch(e) {
-        Swal.fire('ข้อผิดพลาด', 'อัปเดตข้อมูลไม่สำเร็จ', 'error');
-      }
+      Swal.fire('สำเร็จ', 'บันทึกการจัดการเรียบร้อย', 'success');
+      let modal = bootstrap.Modal.getInstance(document.getElementById('actionModal'));
+      if(modal) modal.hide();
+      loadInventory(); 
+    } catch(e) {
+      Swal.fire('ข้อผิดพลาด', 'อัปเดตข้อมูลไม่สำเร็จ กรุณาเช็คชื่อหัวคอลัมน์ในชีต actions ให้ตรงตามที่ระบุ', 'error');
     }
+  }
 
     async function loadReport() {
       let st = new Date(document.getElementById('r-start').value);
@@ -1068,7 +1105,7 @@
         let currentTotalQty = 0;
 
         let balances = {};
-        data.transactions.forEach(r => {
+        (data.transactions || []).forEach(r => {
            let key = r.name + "_" + r.lot;
            if (balances[key] === undefined) balances[key] = 0;
            
@@ -1081,7 +1118,7 @@
            r.runningBalance = balances[key]; 
         });
 
-        let filteredData = data.transactions.filter(r => {
+        let filteredData = (data.transactions || []).filter(r => {
            let rDate = new Date(r.date);
            return rDate >= st && rDate <= en;
         });
@@ -1168,19 +1205,15 @@
         
       let tbodyHtml = '';
       
-      // ดึงแถวข้อมูลทั้งหมดจากตารางที่แสดงอยู่
       let trs = document.getElementById('alert-tbody').getElementsByTagName('tr');
 
-      // ตรวจสอบทีละแถวว่าถูกซ่อนจากการค้นหาหรือไม่
       for (let i = 0; i < trs.length; i++) {
         if (trs[i].style.display !== 'none') {
           let tds = trs[i].getElementsByTagName('td');
           if (tds.length > 0) {
-            // ดึง Barcode และ Lot No. จากคอลัมน์ในตาราง
             let rowBarcode = tds[0].innerText.trim();
             let rowLot = tds[2].innerText.trim();
 
-            // นำไปจับคู่กับข้อมูลหลักใน currentInventoryData
             let item = currentInventoryData.find(v => String(v.barcode) === String(rowBarcode) && String(v.lot) === String(rowLot));
             
             if (item && item.days <= 180) {
