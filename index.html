@@ -561,7 +561,7 @@
       Swal.fire({ title: 'กำลังตรวจสอบ...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        let response = await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/users`);
+        let response = await fetch(`${SHEETY_API_URL}/users`);
         let data = await response.json();
         
         let foundUser = data.users.find(user => user.username === u && user.password === p);
@@ -583,7 +583,7 @@
           loadInventory();
 
           // บันทึกประวัติ Login
-          await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/loginHistory`, {
+          await fetch(`${SHEETY_API_URL}/loginHistory`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ loginHistory: { date: new Date().toISOString(), username: currentUser, status: 'Success' }})
@@ -592,7 +592,7 @@
           Swal.close();
         } else {
           // บันทึกประวัติ Login พลาด
-          await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/loginHistory`, {
+          await fetch(`${SHEETY_API_URL}/loginHistory`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ loginHistory: { date: new Date().toISOString(), username: u, status: 'Failed' }})
@@ -639,7 +639,7 @@
       Swal.fire({ title: 'ค้นหา...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        let response = await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/inventory`);
+        let response = await fetch(`${SHEETY_API_URL}/inventory`);
         let data = await response.json();
         
         let foundItems = data.inventory.filter(item => String(item.barcode) === String(bc));
@@ -699,7 +699,7 @@
       
       try {
         // 1. บันทึก Transaction
-        await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/transactions`, {
+        await fetch(`${SHEETY_API_URL}/transactions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ transaction: { date: date, type: type, barcode: barcode, name: productName, lot: lotNo, exp: expDate, qty: qty, note: note, user: currentUser }})
@@ -743,10 +743,10 @@
       Swal.fire({ title: 'กำลังโหลดข้อมูลล่าสุด...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        let resInv = await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/inventory`);
+        let resInv = await fetch(`${SHEETY_API_URL}/inventory`);
         let dataInv = await resInv.json();
         
-        let resTrans = await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/transactions`);
+        let resTrans = await fetch(`${SHEETY_API_URL}/transactions`);
         let dataTrans = await resTrans.json();
 
         // คำนวณยอด In / Out จากชีต Transactions
@@ -875,7 +875,7 @@
       Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        let resUsers = await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/users`);
+        let resUsers = await fetch(`${SHEETY_API_URL}/users`);
         let dataUsers = await resUsers.json();
         
         let tbody = document.getElementById('users-tbody');
@@ -890,7 +890,7 @@
         });
         
         // โหลดประวัติ Login
-        let resHist = await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/loginHistory`);
+        let resHist = await fetch(`${SHEETY_API_URL}/loginHistory`);
         let dataHist = await resHist.json();
         
         let hTbody = document.getElementById('historyTableBody');
@@ -922,7 +922,7 @@
       Swal.fire({ title: 'กำลังสร้างบัญชี...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-         await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/users`, {
+         await fetch(`${SHEETY_API_URL}/users`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user: { username: username, password: password, displayName: displayName, role: role }})
@@ -991,7 +991,7 @@
       
       try {
         // ใช้ PUT request เพื่ออัปเดตแถวข้อมูลเดิมในชีต Inventory ตาม ID
-        await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/inventory/${rowId}`, {
+        await fetch(`${SHEETY_API_URL}/inventory/${rowId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1020,7 +1020,7 @@
       Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        let res = await fetch(`${https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8}/transactions`);
+        let res = await fetch(`${SHEETY_API_URL}/transactions`);
         let data = await res.json();
         
         let searchKeyword = document.getElementById('reportSearchInput').value.toLowerCase().trim();
