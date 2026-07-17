@@ -482,10 +482,16 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
-  <!-- SCRIPT ที่เปลี่ยนเป็น FETCH สำหรับ SHEETY -->
   <script>
-    // ⚠️ นำลิงก์ Sheety API ของคุณมาวางที่นี่
-    // แนะนำให้ตั้งชื่อชีตเป็น users, inventory, transactions, loginHistory, actions (พิมพ์เล็กทั้งหมด)
+    // ⚠️ ข้อควรระวังเรื่อง Google Sheets: 
+    // เพื่อให้ตัวโค้ดนี้ทำงานกับ Sheety ได้อย่างสมบูรณ์แบบ 100% 
+    // กรุณาเปลี่ยน "ชื่อหัวคอลัมน์" (แถวที่ 1 ของทุกชีต) ให้เป็นตัวพิมพ์เล็กภาษาอังกฤษดังนี้
+    //
+    // ชีต "loginHistory" : date | username | status
+    // ชีต "transactions" : date | type | barcode | name | lot | exp | qty | note | user
+    // ชีต "inventory"    : barcode | name | lot | exp | qty | managedType | managedNote | managedUser
+    // ชีต "users"        : username | password | displayName | role
+
     const SHEETY_API_URL = "https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8"; 
 
     let currentUser = '';
@@ -582,7 +588,7 @@
           applyPermissions(); 
           loadInventory();
 
-          // บันทึกประวัติ Login
+          // บันทึกประวัติ Login สำเร็จ
           await fetch(`${SHEETY_API_URL}/loginHistory`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -702,13 +708,65 @@
         await fetch(`${SHEETY_API_URL}/transactions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transaction: { date: date, type: type, barcode: barcode, name: productName, lot: lotNo, exp: expDate, qty: qty, note: note, user: currentUser }})
+          body: JSON.stringify({ 
+            transaction: { 
+              date: date, 
+              type: type, 
+              barcode: barcode, 
+              name: productName, 
+              lot: lotNo, 
+              exp: expDate, 
+              qty: qty, 
+              note: note, 
+              user: currentUser 
+            }
+          })
         });
 
-        // 2. ไปอัปเดตยอดคงเหลือในชีต Inventory (ใน Sheety ปกติต้องยิง PUT หรือถ้ายังไม่มีแถวต้องยิง POST)
-        // **(หมายเหตุ: สำหรับตัวอย่างนี้ จะจำลองการบันทึกสำเร็จ หากใช้งานจริงบน Sheety อาจจะต้องเขียน Logic เช็คว่ามีสินค้านี้หรือยัง ถ้ามีให้ PUT แก้ไข qty ถ้าไม่มีให้ POST เพิ่มแถวใหม่)**
+        // 2. ไปอัปเดตยอดคงเหลือในชีต Inventory
+        let resInv = await fetch(`${SHEETY_API_URL}/inventory`);
+        let dataInv = await resInv.json();
+        
+        let existingItem = dataInv.inventory.find(item => String(item.barcode) === String(barcode) && String(item.lot) === String(lotNo));
 
-        Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success');
+        if (existingItem) {
+          // หากมีอยู่แล้ว -> อัปเดต (PUT)
+          let currentQty = parseInt(existingItem.qty) || 0;
+          let newQty = (type === 'IN') ? currentQty + qty : currentQty - qty;
+
+          if (newQty < 0) {
+            Swal.fire('Error', 'ยอดคงเหลือไม่เพียงพอสำหรับการเบิกออก', 'error');
+            return;
+          }
+
+          await fetch(`${SHEETY_API_URL}/inventory/${existingItem.id}`, {
+             method: 'PUT',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ inventory: { qty: newQty } })
+          });
+        } else {
+          // หากยังไม่มี -> เพิ่มแถวใหม่ (POST)
+          if (type === 'OUT') {
+            Swal.fire('Error', 'ไม่พบสินค้ารายการนี้ในคลัง ไม่สามารถเบิกออกได้', 'error');
+            return;
+          }
+
+          await fetch(`${SHEETY_API_URL}/inventory`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              inventory: { 
+                barcode: barcode, 
+                name: productName, 
+                lot: lotNo, 
+                exp: expDate, 
+                qty: qty 
+              }
+            })
+          });
+        }
+
+        Swal.fire('สำเร็จ', 'บันทึกข้อมูลและอัปเดตสต็อกเรียบร้อย', 'success');
         document.getElementById('t-barcode').value = '';
         document.getElementById('t-name').value = '';
         document.getElementById('t-lot').value = '';
@@ -716,12 +774,15 @@
         document.getElementById('t-qty').value = ''; 
         document.getElementById('t-note').value = '';
         document.getElementById('lot-list').innerHTML = '';
+        
+        loadInventory();
+
       } catch (e) {
-        Swal.fire('Error', 'บันทึกข้อมูลไม่สำเร็จ', 'error');
+        Swal.fire('Error', 'บันทึกข้อมูลไม่สำเร็จ: ' + e.message, 'error');
       }
     }
 
-    // --- Helper: คำนวณวันหมดอายุ ---
+    // --- Helper ---
     function calculateDays(expDateStr) {
       if(!expDateStr) return 999;
       let exp = new Date(expDateStr);
@@ -729,7 +790,6 @@
       return Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
     }
 
-    // --- Helper: กำหนดสถานะ ---
     function determineStatus(days) {
       if(days < 0) return 'Expired';
       if(days <= 30) return 'Critical';
@@ -749,7 +809,6 @@
         let resTrans = await fetch(`${SHEETY_API_URL}/transactions`);
         let dataTrans = await resTrans.json();
 
-        // คำนวณยอด In / Out จากชีต Transactions
         currentTotalIn = 0;
         currentTotalOut = 0;
         dataTrans.transactions.forEach(t => {
@@ -759,11 +818,10 @@
 
         currentTotalProducts = dataInv.inventory.length;
 
-        // คำนวณ days และ status ด้วย Javascript แทน
         currentInventoryData = dataInv.inventory.map(item => {
            let d = calculateDays(item.exp);
            return {
-             id: item.id, // รหัสแถวของ Sheety (ต้องมีเผื่ออัปเดต)
+             id: item.id,
              barcode: item.barcode,
              name: item.name,
              lot: item.lot,
@@ -889,7 +947,6 @@
           tbody.innerHTML += `<tr><td class="fw-bold">${u.username}</td><td>${u.displayName}</td><td><span class="badge ${badgeClass} px-3 py-1">${u.role}</span></td></tr>`;
         });
         
-        // โหลดประวัติ Login
         let resHist = await fetch(`${SHEETY_API_URL}/loginHistory`);
         let dataHist = await resHist.json();
         
@@ -897,7 +954,7 @@
         hTbody.innerHTML = '';
         dataHist.loginHistory.forEach(row => {
           let date = row.date ? new Date(row.date).toLocaleString('th-TH') : '-';
-          let badgeClass = (row.status === 'สำเร็จ' || row.status === 'Success') ? 'bg-success' : 'bg-danger';
+          let badgeClass = (row.status === 'Success') ? 'bg-success' : 'bg-danger';
           hTbody.innerHTML += `<tr><td>${date}</td><td class="fw-bold">${row.username}</td><td><span class="badge ${badgeClass} text-white px-2 py-1">${row.status}</span></td></tr>`;
         });
 
@@ -907,7 +964,6 @@
       }
     }
 
-    // --- FETCH: สร้าง User ใหม่ ---
     async function createNewUser() {
       if (currentUserRole !== 'Admin') return Swal.fire('ข้อผิดพลาด', 'คุณไม่มีสิทธิ์ในการสร้างบัญชีผู้ใช้งาน', 'error');
       
@@ -917,7 +973,6 @@
       let role = document.getElementById('u-role').value;
       
       if (!username || !password || !displayName || !role) return Swal.fire('คำเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง', 'warning');
-      if (!/^[a-zA-Z0-9_]+$/.test(username)) return Swal.fire('คำเตือน', 'Username ต้องใช้ภาษาอังกฤษ ตัวเลข หรืออักขระพิเศษ (_) เท่านั้น', 'warning');
 
       Swal.fire({ title: 'กำลังสร้างบัญชี...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
@@ -959,7 +1014,6 @@
       }
     }
 
-    // มีการเพิ่ม id มาเพื่อใช้ตอน PUT อัปเดตข้อมูลด้วย Sheety API
     function doAction(id, barcode, name, lot, exp, status, type) {
       document.getElementById('ac-id').value = id;
       document.getElementById('ac-barcode').value = barcode;
@@ -990,7 +1044,6 @@
       Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
       try {
-        // ใช้ PUT request เพื่ออัปเดตแถวข้อมูลเดิมในชีต Inventory ตาม ID
         await fetch(`${SHEETY_API_URL}/inventory/${rowId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -1012,7 +1065,6 @@
       }
     }
 
-    // --- FETCH: โหลดรายงาน Transaction ---
     async function loadReport() {
       let st = new Date(document.getElementById('r-start').value);
       let en = new Date(document.getElementById('r-end').value);
@@ -1028,7 +1080,6 @@
         tbody.innerHTML = '';
         let currentTotalQty = 0;
 
-        // ฟิลเตอร์ข้อมูลตามวันที่กำหนด
         let filteredData = data.transactions.filter(r => {
            let rDate = new Date(r.date);
            return rDate >= st && rDate <= en;
