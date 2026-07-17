@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>Stock System - Sister Medical Laboratory</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Sarabun', sans-serif; }
+    .hidden { display: none !important; }
+    
+    /* Sidebar Styling */
+    .sidebar { 
+      min-height: 100vh; background: #2c3e50; 
+      color: white; 
+      padding: 10px 0;
+      width: 250px;
+      flex-shrink: 0;
+    }
+    .sidebar a { 
+      color: #adb5bd;
+      text-decoration: none; 
+      padding: 12px 25px;
+      display: block; 
+      border-left: 4px solid transparent; 
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+    .sidebar a:hover, .sidebar a.active { color: white; background: #34495e; border-left: 4px solid #3498db; }
+    
+    .logout-top {
+      padding: 10px 25px;
+      margin-bottom: 20px;
+      display: block;
+      color: #ff6b6b;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .logout-top:hover { color: #ff8787; }
+
+    /* Content Area */
+    .content-area {
+      padding: 30px;
+      max-width: calc(100% - 250px); 
+      overflow-x: hidden; 
+    }
+
+    /* Badges */
+    .badge-normal { background-color: #198754; color: white; }
+    .badge-warning { background-color: #ffc107; color: black; }
+    .badge-near { background-color: #fd7e14; color: white; }
+    .badge-critical { background-color: #dc3545; color: white; }
+    .badge-expired { background-color: #212529; color: white; }
+    
+    /* Dashboard Cards */
+    .dashboard-card { 
+      border-radius: 12px;
+      color: white; 
+      padding: 25px; 
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      border: none;
+      height: 100%;
+      min-height: 160px;
+    }
+    .dashboard-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .dashboard-card .icon-bg {
+      position: absolute;
+      right: -10px;
+      bottom: -15px;
+      font-size: 110px;
+      opacity: 0.15;
+      transform: rotate(-10deg);
+    }
+    .dashboard-card h5 { font-weight: 600; font-size: 1.1rem; z-index: 1; position: relative; }
+    .dashboard-card h2 { font-weight: 700; font-size: 2.8rem; margin-top: 10px; z-index: 1; position: relative; }
+    .dashboard-card p { z-index: 1; position: relative; font-weight: 300; }
+    
+    .card-normal { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+    .card-warning { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: #333 !important; }
+    .card-warning .icon-bg { opacity: 0.1; }
+    .card-near { background: linear-gradient(135deg, #f12711 0%, #f5af19 100%); }
+    .card-critical { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+    .card-expired { background: linear-gradient(135deg, #434343 0%, #000000 100%); }
+
+    .alert-custom { border: none; border-left: 5px solid; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+
+    .summary-card {
+        background: #ffffff;
+        border: 1px solid #f0f0f0;
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+    }
+    .summary-card .icon-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5rem;
+    }
+    .icon-purple { background: #f4f0ff; color: #6366f1; }
+    .icon-green { background: #ecfdf5; color: #10b981; }
+    .icon-red { background: #fef2f2; color: #ef4444; }
+    .icon-warning { background: #fffbeb; color: #f59e0b; }
+
+    .summary-value-green { color: #10b981; }
+    .summary-value-red { color: #ef4444; }
+    .summary-value-warning { color: #d97706; }
+
+    .alert-urgent-box {
+        background-color: #fffdf2;
+        border: 1px solid #fde68a;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+    .alert-urgent-box h6 {
+        color: #b45309;
+        font-weight: 700;
+        margin-bottom: 12px;
+        font-size: 1.1rem;
+    }
+    .alert-urgent-box ul {
+        margin-bottom: 0;
+        padding-left: 25px;
+        color: #92400e;
+    }
+    .alert-urgent-box ul li {
+        margin-bottom: 6px;
+    }
+
+    #pdf-template { display: none; background: white; padding: 40px; color: black;}
+    .pdf-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+    .pdf-logo { width: 80px; height: auto; }
+  </style>
+</head>
+<body>
+
+  <div id="login-page" class="container mt-5">
+    <div class="row justify-content-center">
+      <div class="col-md-4 mt-5">
+        <div class="card shadow-lg border-0" style="border-radius: 15px;">
+          <div class="card-body text-center p-5">
+            <img src="https://cdn-icons-png.flaticon.com/512/2966/2966327.png" width="60" class="mb-3">
+            <h4 class="mb-2 fw-bold text-dark">เข้าสู่ระบบจัดการสต็อก</h4>
+            <p class="text-muted mb-4 small">คลินิกเทคนิคการแพทย์ซิสเตอร์ ศูนย์ระยอง</p>
+       
+            <input type="text" id="login-user" class="form-control mb-3" placeholder="Username">
+            <div class="input-group mb-4">
+              <input type="password" id="login-pass" class="form-control" placeholder="Password">
+              <button class="btn btn-outline-secondary" type="button" id="togglePasswordBtn" onclick="togglePassword()">👁️</button>
+            </div>
+            <button class="btn btn-primary w-100 fw-bold" onclick="login()">เข้าสู่ระบบ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="main-app" class="hidden">
+    <div class="d-flex">
+      
+      <div class="sidebar">
+        <div class="text-center mb-3 px-3 mt-3">
+          <h4 class="fw-bold">SistersStockLab</h4>
+          <small id="current-user-display" class="text-info"></small>
+          <a href="#" class="logout-top" onclick="logout()"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
+        </div>
+        
+        <hr class="border-secondary mb-3"> 
+
+        <a href="#" class="nav-menu active" onclick="switchTab('tab-overview', this); loadInventory();"><i class="bi bi-grid-1x2 me-2"></i> ภาพรวม (Overview)</a>
+        <a href="#" class="nav-menu hidden" id="menu-trans" onclick="switchTab('tab-trans', this)"><i class="bi bi-arrow-left-right me-2"></i> รับเข้า / เบิกออก</a>
+        <a href="#" class="nav-menu" onclick="switchTab('tab-search', this); loadInventory();"><i class="bi bi-search me-2"></i> ค้นหาสินค้าคงคลัง</a>
+        <a href="#" class="nav-menu" onclick="switchTab('tab-alert', this); loadInventory();"><i class="bi bi-bell me-2"></i> จัดการแจ้งเตือนอายุ</a>
+        <a href="#" class="nav-menu" onclick="switchTab('tab-report', this)"><i class="bi bi-file-earmark-bar-graph me-2"></i> รายงานประจำเดือน</a>
+        <a href="#" class="nav-menu hidden" id="menu-users" onclick="switchTab('tab-users', this); loadUsers();"><i class="bi bi-people me-2"></i> จัดการผู้ใช้</a>
+      </div>
+
+      <div class="content-area flex-grow-1">
+        
+        <div id="tab-overview" class="tab-content">
+          <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+            <h3 class="fw-bold text-dark mb-0"><i class="bi bi-grid-1x2 text-primary me-2"></i> ภาพรวมระบบคลังสินค้า</h3>
+            <button class="btn btn-primary fw-bold shadow-sm" onclick="loadInventory()">
+              <i class="bi bi-arrow-clockwise me-1"></i> อัปเดตข้อมูล
+            </button>
+          </div>
+          <div id="overview-alerts-container"></div>
+          <div class="row g-4 mt-1" id="dashboard-cards"></div>
+        </div>
+
+        <div id="tab-trans" class="tab-content hidden">
+          <div class="mb-4 border-bottom pb-3">
+            <h3 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-left-right text-primary me-2"></i> ระบบการรับเข้า / เบิกออก</h3>
+          </div>
+          <div class="card shadow-sm border-0" style="border-radius: 12px;">
+            <div class="card-body p-4">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="fw-bold">ประเภทรายการ</label>
+                  <select id="t-type" class="form-select">
+                    <option value="IN">📥 รับเข้า (IN)</option>
+                    <option value="OUT">📤 เบิกออก (OUT)</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="fw-bold">วันที่ทำรายการ</label>
+                  <input type="date" id="t-date" class="form-control">
+                </div>
+                <div class="col-md-4">
+                  <label class="fw-bold">บาร์โค้ด</label>
+                  <input type="text" id="t-barcode" class="form-control" placeholder="สแกนหรือพิมพ์บาร์โค้ด..." onchange="fetchProductDetails()">
+                </div>
+                <div class="col-md-4">
+                  <label class="fw-bold">ชื่อสินค้า</label>
+                  <input type="text" id="t-name" class="form-control">
+                </div>
+                <div class="col-md-3">
+                  <label class="fw-bold">Lot. No.</label>
+                  <input type="text" id="t-lot" class="form-control" list="lot-list" onchange="autoFillExp()">
+                  <datalist id="lot-list"></datalist>
+                </div>
+                <div class="col-md-3">
+                  <label class="fw-bold">Exp. Date</label>
+                  <input type="date" id="t-exp" class="form-control">
+                </div>
+                <div class="col-md-2">
+                  <label class="fw-bold">จำนวน</label>
+                  <input type="number" id="t-qty" class="form-control" min="1" placeholder="ระบุจำนวน">
+                </div>
+                <div class="col-md-12">
+                  <label class="fw-bold">หมายเหตุ</label>
+                  <input type="text" id="t-note" class="form-control" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)">
+                </div>
+                <div class="col-md-12 text-end mt-4">
+                  <button class="btn btn-success px-5 fw-bold" onclick="saveTransaction()"><i class="bi bi-save me-1"></i> บันทึกรายการ</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-search" class="tab-content hidden">
+          <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-3">
+            <h3 class="fw-bold text-dark mb-0"><i class="bi bi-search text-primary me-2"></i> ค้นหารายการสินค้า</h3>
+            <button class="btn btn-primary fw-bold shadow-sm" onclick="loadInventory()">
+              <i class="bi bi-arrow-clockwise me-1"></i> อัปเดตข้อมูล
+            </button>
+          </div>
+          <div class="input-group mb-4 shadow-sm">
+            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" id="search-box" class="form-control" placeholder="พิมพ์บาร์โค้ด, ชื่อสินค้า, หรือ Lot เพื่อค้นหา..." onkeyup="filterTable('search-table', this.value)">
+          </div>
+          <div class="table-responsive bg-white shadow-sm rounded border-0">
+            <table class="table table-hover mb-0 text-center align-middle" id="search-table">
+              <thead class="table-dark">
+                <tr>
+                  <th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>Lot. No.</th><th>Exp. Date</th><th>คงเหลือ</th><th>เวลาที่เหลือก่อนหมดอายุ</th><th>สถานะ</th>
+                </tr>
+              </thead>
+              <tbody id="search-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-alert" class="tab-content hidden">
+          <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-3">
+            <h3 class="fw-bold text-dark mb-0"><i class="bi bi-bell text-primary me-2"></i> จัดการแจ้งเตือนอายุสินค้า (&lt; 180 วัน)</h3>
+            <div>
+              <button class="btn btn-primary fw-bold shadow-sm me-2" onclick="loadInventory()"><i class="bi bi-arrow-clockwise me-1"></i> อัปเดตข้อมูล</button>
+              <button class="btn btn-secondary fw-bold shadow-sm" onclick="printAlertReport()"><i class="bi bi-printer me-1"></i> พิมพ์รายงาน PDF</button>
+            </div>
+          </div>
+          <div class="input-group mb-4 shadow-sm">
+            <span class="input-group-text bg-white"><i class="bi bi-funnel text-muted"></i></span>
+            <input type="text" id="alert-search-box" class="form-control" placeholder="ค้นหารายการที่แจ้งเตือน..." onkeyup="filterTable('alert-table', this.value)">
+          </div>
+          <div class="table-responsive bg-white shadow-sm rounded border-0">
+            <table class="table table-hover mb-0 text-center align-middle" id="alert-table">
+              <thead class="table-danger">
+                <tr>
+                  <th>รหัสสินค้า/บาร์โค้ด</th><th>ชื่อสินค้า</th><th>Lot. No.</th><th>วันหมดอายุ</th><th>คงเหลือ</th><th>สถานะ</th><th>การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="alert-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-report" class="tab-content hidden">
+          <div class="mb-3 border-bottom pb-3">
+            <h3 class="fw-bold text-dark mb-0"><i class="bi bi-file-earmark-bar-graph text-primary me-2"></i> รายงานความเคลื่อนไหวสินค้าประจำเดือน</h3>
+          </div>
+          <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px;">
+            <div class="card-body">
+              <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                  <label class="fw-bold text-muted">ตั้งแต่วันที่</label>
+                  <input type="date" id="r-start" class="form-control">
+                </div>
+                <div class="col-md-3">
+                  <label class="fw-bold text-muted">ถึงวันที่</label>
+                  <input type="date" id="r-end" class="form-control">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-bold text-muted mb-0">ค้นหาสินค้า</label>
+                  <input type="text" id="reportSearchInput" class="form-control" placeholder="ค้นหาชื่อสินค้า, บาร์โค้ด หรือ Lot...">
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-primary w-100 fw-bold" onclick="loadReport()"><i class="bi bi-search me-1"></i> ค้นหา</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="text-end mb-3">
+            <button class="btn btn-success fw-bold shadow-sm" onclick="printMonthlyReport()"><i class="bi bi-printer me-1"></i> พิมพ์รายงาน PDF</button>
+          </div>
+          <div class="table-responsive bg-white shadow-sm rounded border-0">
+            <table class="table table-hover mb-0 text-center align-middle" id="monthly-table">
+              <thead class="table-dark">
+                <tr>
+                  <th>วันที่</th><th>ประเภท</th><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>Lot. No.</th><th class="text-center">จำนวน</th><th class="text-center">คงเหลือ</th><th>ผู้ทำรายการ</th>
+                </tr>
+              </thead>
+              <tbody id="monthly-tbody"></tbody>
+              <tfoot id="monthly-tfoot" class="table-light fw-bold hidden">
+                <tr>
+                  <td colspan="5" class="text-end">ยอดรวมสุทธิที่แสดง (รับเข้า - เบิกออก):</td>
+                  <td id="monthly-total-qty" class="text-center fs-6">0</td>
+                  <td></td><td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- แท็บสำหรับจัดการผู้ใช้ -->
+        <div id="tab-users" class="tab-content hidden">
+          <div class="mb-4 border-bottom pb-3">
+            <h3 class="fw-bold text-dark mb-0"><i class="bi bi-people text-primary me-2"></i> จัดการบัญชีผู้ใช้</h3>
+          </div>
+          <div class="row g-4">
+            
+            <!-- ส่วนฟอร์มสร้างบัญชีผู้ใช้ใหม่ -->
+            <div class="col-md-5">
+              <div class="card shadow-sm border-0" style="border-radius: 12px;">
+                <div class="card-header bg-primary text-white fw-bold py-3" style="border-radius: 12px 12px 0 0;">
+                  <i class="bi bi-person-plus-fill me-2"></i>สร้างบัญชีผู้ใช้ใหม่
+                </div>
+                <div class="card-body p-4">
+                  <div class="mb-3">
+                    <label class="fw-bold text-muted small">Username</label>
+                    <input type="text" id="u-username" class="form-control" placeholder="พิมพ์เป็นภาษาอังกฤษหรือตัวเลข">
+                  </div>
+                  <div class="mb-3">
+                    <label class="fw-bold text-muted small">Password</label>
+                    <input type="password" id="u-password" class="form-control" placeholder="รหัสผ่านเข้าใช้งาน">
+                  </div>
+                  <div class="mb-3">
+                    <label class="fw-bold text-muted small">ชื่อผู้ใช้งานจริง (Display Name)</label>
+                    <input type="text" id="u-display" class="form-control" placeholder="เช่น นายสมชาย ซิสเตอร์">
+                  </div>
+                  <div class="mb-4">
+                    <label class="fw-bold text-muted small">สิทธิ์การใช้งาน (Role)</label>
+                    <select id="u-role" class="form-select">
+                      <option value="Admin">Admin (สิทธิ์สูงสุด/จัดการผู้ใช้ได้)</option>
+                      <option value="Staff">Staff (บันทึก/จัดการสต็อกได้ทั้งหมด)</option>
+                      <option value="Viewer">Viewer (ดูข้อมูลและรายงานได้อย่างเดียว)</option>
+                    </select>
+                  </div>
+                  <button class="btn btn-primary w-100 fw-bold py-2" onclick="createNewUser()">
+                    <i class="bi bi-person-check-fill me-1"></i> ยืนยันการสร้างบัญชี
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ส่วนขวา: ตารางรายชื่อผู้ใช้งาน และ ตารางประวัติการเข้าสู่ระบบ -->
+            <div class="col-md-7">
+              <!-- ตารางรายชื่อผู้ใช้ในระบบ -->
+              <div class="card shadow-sm border-0" style="border-radius: 12px;">
+                <div class="card-header bg-dark text-white fw-bold py-3" style="border-radius: 12px 12px 0 0;">
+                  <i class="bi bi-list-ul me-2"></i>รายชื่อผู้ใช้งานทั้งหมดในระบบ
+                </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0 text-center align-middle" id="users-table">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Username</th><th>ชื่อผู้แสดง</th><th>สิทธิ์การใช้งาน</th>
+                        </tr>
+                      </thead>
+                      <tbody id="users-tbody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ตารางประวัติการเข้าสู่ระบบล่าสุด (ย้ายมาวางต่อท้ายใต้ตารางผู้ใช้) -->
+              <div class="card shadow-sm border-0 mt-4" style="border-radius: 12px;">
+                <div class="card-header bg-secondary text-white fw-bold py-3" style="border-radius: 12px 12px 0 0;">
+                  <i class="bi bi-clock-history me-2"></i>ประวัติการเข้าสู่ระบบล่าสุด
+                </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0 text-center align-middle" id="history-table">
+                      <thead class="table-light">
+                        <tr>
+                          <th>วัน/เวลา</th><th>Username</th><th>สถานะ</th>
+                        </tr>
+                      </thead>
+                      <tbody id="historyTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="actionModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold"><i class="bi bi-tools text-warning me-2"></i> จัดการสินค้าใกล้หมดอายุ</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="ac-barcode"><input type="hidden" id="ac-name"><input type="hidden" id="ac-lot"><input type="hidden" id="ac-exp"><input type="hidden" id="ac-status">
+          <label class="fw-bold text-dark">ระบุรายละเอียดการจัดการ:</label>
+          <textarea id="ac-note" class="form-control mt-2" rows="4" placeholder="เช่น ส่งคืนบริษัท, ทำลายทิ้ง, เปลี่ยนจุดวาง..."></textarea>
+        </div>
+        <div class="modal-footer bg-light border-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+          <button type="button" class="btn btn-primary fw-bold px-4" onclick="submitAction('จัดการ')">บันทึกข้อมูล</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="pdf-container" style="display:none;">
+    <div id="pdf-content" style="padding: 20px;">
+      <div class="pdf-header">
+        <img src="https://cdn-icons-png.flaticon.com/512/2966/2966327.png" class="pdf-logo" alt="Logo">
+        <h3 style="margin-top:10px;">คลินิกเทคนิคการแพทย์ซิสเตอร์ ศูนย์ระยอง</h3>
+        <h4 id="pdf-title"></h4>
+        <p id="pdf-subtitle"></p>
+      </div>
+      <table class="table table-bordered text-center align-middle" style="width: 100%; font-size: 13px;" id="pdf-table">
+        <thead id="pdf-thead" class="table-light"></thead>
+        <tbody id="pdf-tbody"></tbody>
+        <tfoot id="pdf-tfoot" class="table-light fw-bold"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let currentUser = '';
+    let currentUserDisplayName = '';
+    let currentUserRole = ''; 
+    let currentInventoryData = [];
+    let currentReportData = [];
+    let currentProductLots = [];
+    let currentTotalIn = 0;
+    let currentTotalOut = 0;
+    let currentTotalProducts = 0;
+
+    document.getElementById('t-date').valueAsDate = new Date();
+    document.getElementById('r-start').valueAsDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    document.getElementById('r-end').valueAsDate = new Date();
+
+    window.onload = function() {
+      let savedUser = localStorage.getItem('sisterMed_user');
+      let savedDisplayName = localStorage.getItem('sisterMed_displayName');
+      let savedRole = localStorage.getItem('sisterMed_role'); 
+      if (savedUser) {
+        currentUser = savedUser;
+        currentUserDisplayName = savedDisplayName || savedUser;
+        currentUserRole = savedRole || 'Viewer'; 
+        
+        // --- เปลี่ยนจาก currentUserDisplayName เป็น currentUser ---
+        document.getElementById('current-user-display').innerText = `User: ${currentUser} (${currentUserRole})`;
+        
+        document.getElementById('login-page').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        
+        applyPermissions(); 
+        loadInventory(); 
+      }
+    };
+
+    function applyPermissions() {
+      const transMenu = document.getElementById('menu-trans');
+      const usersMenu = document.getElementById('menu-users');
+      
+      if (currentUserRole === 'Admin') {
+        if (transMenu) transMenu.classList.remove('hidden');
+        if (usersMenu) usersMenu.classList.remove('hidden');
+      } else if (currentUserRole === 'Staff') {
+        if (transMenu) transMenu.classList.remove('hidden');
+        if (usersMenu) usersMenu.classList.add('hidden');
+      } else if (currentUserRole === 'Viewer') {
+        if (transMenu) transMenu.classList.add('hidden'); 
+        if (usersMenu) usersMenu.classList.add('hidden'); 
+      }
+      
+      const activeTab = document.querySelector('.nav-menu.active');
+      if (activeTab && activeTab.classList.contains('hidden')) {
+        switchTab('tab-overview', document.querySelector('.nav-menu[onclick*="tab-overview"]'));
+      }
+    }
+
+    function togglePassword() {
+      let passInput = document.getElementById('login-pass');
+      let toggleBtn = document.getElementById('togglePasswordBtn');
+      if (passInput.type === 'password') {
+        passInput.type = 'text';
+        toggleBtn.innerText = '🙈';
+      } else {
+        passInput.type = 'password'; toggleBtn.innerText = '👁️';
+      }
+    }
+
+    function login() {
+      let u = document.getElementById('login-user').value;
+      let p = document.getElementById('login-pass').value;
+      if(!u || !p) return Swal.fire('เตือน', 'กรุณากรอก Username และ Password', 'warning');
+      Swal.fire({ title: 'กำลังตรวจสอบ...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      google.script.run.withSuccessHandler(res => {
+        if(res.success) {
+          currentUser = res.username;
+          currentUserDisplayName = res.displayName || res.username;
+          currentUserRole = res.role; 
+          
+          localStorage.setItem('sisterMed_user', currentUser); 
+          localStorage.setItem('sisterMed_displayName', currentUserDisplayName); 
+          localStorage.setItem('sisterMed_role', currentUserRole); 
+          
+          // --- เปลี่ยนจาก currentUserDisplayName เป็น currentUser ---
+          document.getElementById('current-user-display').innerText = `User: ${currentUser} (${currentUserRole})`;
+          
+          document.getElementById('login-page').classList.add('hidden');
+          document.getElementById('main-app').classList.remove('hidden');
+          
+          applyPermissions(); 
+          loadInventory();
+        } else {
+          Swal.fire('Error', res.message, 'error');
+        }
+      }).checkLogin(u, p);
+    }
+
+    function logout() {
+      Swal.fire({
+        title: 'ยืนยันการออกจากระบบ?', icon: 'warning', showCancelButton: true,
+        confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          currentUser = '';
+          currentUserDisplayName = '';
+          currentUserRole = '';
+          localStorage.removeItem('sisterMed_user'); 
+          localStorage.removeItem('sisterMed_displayName'); 
+          localStorage.removeItem('sisterMed_role'); 
+          document.getElementById('main-app').classList.add('hidden');
+          document.getElementById('login-page').classList.remove('hidden');
+          document.getElementById('login-user').value = '';
+          document.getElementById('login-pass').value = '';
+        }
+      });
+    }
+
+    function switchTab(tabId, el) {
+      document.querySelectorAll('.tab-content').forEach(d => d.classList.add('hidden'));
+      document.getElementById(tabId).classList.remove('hidden');
+      document.querySelectorAll('.nav-menu').forEach(a => a.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function fetchProductDetails() {
+      let bc = document.getElementById('t-barcode').value;
+      if(!bc) return;
+      Swal.fire({ title: 'ค้นหา...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      google.script.run.withSuccessHandler(res => {
+        Swal.close();
+        if(res.name) document.getElementById('t-name').value = res.name;
+        
+        currentProductLots = res.lots;
+        let datalist = document.getElementById('lot-list');
+        datalist.innerHTML = ''; 
+        if (currentProductLots.length > 0) {
+          currentProductLots.forEach(item => {
+            let option = document.createElement('option');
+            option.value = item.lot;
+            datalist.appendChild(option);
+          });
+          if (currentProductLots.length === 1) {
+            document.getElementById('t-lot').value = currentProductLots[0].lot;
+            document.getElementById('t-exp').value = currentProductLots[0].exp;
+          } else {
+            document.getElementById('t-lot').value = '';
+            document.getElementById('t-exp').value = '';
+            Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'พบหลาย Lot กรุณาเลือก Lot. No.', showConfirmButton: false, timer: 3000 });
+          }
+        }
+      }).getProductDetails(bc);
+    }
+
+    function autoFillExp() {
+      let selectedLot = document.getElementById('t-lot').value;
+      let found = currentProductLots.find(l => l.lot === selectedLot);
+      if (found) document.getElementById('t-exp').value = found.exp;
+    }
+
+    function saveTransaction() {
+      let data = {
+        type: document.getElementById('t-type').value,
+        date: document.getElementById('t-date').value,
+        barcode: document.getElementById('t-barcode').value,
+        productName: document.getElementById('t-name').value,
+        lotNo: document.getElementById('t-lot').value,
+        expDate: document.getElementById('t-exp').value,
+        qty: document.getElementById('t-qty').value,
+        note: document.getElementById('t-note').value,
+        user: currentUser
+      };
+      
+      if(!data.barcode || !data.productName || !data.lotNo || !data.expDate || !data.qty) {
+        return Swal.fire('เตือน', 'กรุณากรอกข้อมูลและจำนวนให้ครบถ้วน', 'warning');
+      }
+
+      Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      google.script.run.withSuccessHandler(() => {
+        Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success');
+        document.getElementById('t-barcode').value = '';
+        document.getElementById('t-name').value = '';
+        document.getElementById('t-lot').value = '';
+        document.getElementById('t-exp').value = '';
+        document.getElementById('t-qty').value = ''; 
+        document.getElementById('t-note').value = '';
+        document.getElementById('lot-list').innerHTML = '';
+      }).saveTransaction(data);
+    }
+
+    function loadInventory() {
+      Swal.fire({ title: 'กำลังโหลดข้อมูลล่าสุด...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      google.script.run.withSuccessHandler(stats => {
+        currentTotalIn = stats.totalIn;
+        currentTotalOut = stats.totalOut;
+        currentTotalProducts = stats.totalProducts;
+        
+        google.script.run.withSuccessHandler(res => {
+          currentInventoryData = res;
+          renderOverview();
+          renderSearchTable();
+          renderAlertTable();
+          Swal.close();
+        }).getInventoryData();
+      }).getDashboardStats();
+    }
+
+    function renderOverview() {
+      let counts = { 'Normal': 0, 'Warning': 0, 'Near Expiry': 0, 'Critical': 0, 'Expired': 0 };
+      let totalItems = currentTotalProducts;
+      let atRiskCount = 0;
+      let urgentListHtml = '';
+      currentInventoryData.forEach(item => {
+        if(counts[item.status] !== undefined) counts[item.status]++;
+        
+        if(item.days <= 180 && (!item.managedType || item.managedType === '')) {
+            atRiskCount++;
+            let alertText = item.days < 0 
+              ? `<span class="text-danger fw-bold">หมดอายุแล้ว ${Math.abs(item.days)} วัน</span>` 
+              : `เหลืออายุเพียง <b>${item.days} วัน</b>`;
+            urgentListHtml += `<li>สินค้า <b>${item.name}</b> (Lot: ${item.lot}) ${alertText} (ยอดคงเหลือ: ${item.qty} ชิ้น)</li>`;
+        }
+      });
+      let totalIn = currentTotalIn.toLocaleString(); 
+      let totalOut = currentTotalOut.toLocaleString();
+      
+      let topSummaryHtml = `
+        <div class="row g-3 mb-4">
+          <div class="col-md-3"><div class="summary-card"><div><p class="text-muted mb-1 small">รายการแล็บทั้งหมด</p><h3 class="fw-bold mb-0">${totalItems}</h3></div><div class="icon-box icon-purple"><i class="bi bi-box-seam-fill"></i></div></div></div>
+          <div class="col-md-3"><div class="summary-card"><div><p class="text-muted mb-1 small">รวมยอดรับเข้าสะสม</p><h3 class="fw-bold mb-0 summary-value-green">${totalIn} <span class="fs-6 text-muted fw-normal">ชิ้น</span></h3></div><div class="icon-box icon-green"><i class="bi bi-arrow-down-short fs-2"></i></div></div></div>
+          <div class="col-md-3"><div class="summary-card"><div><p class="text-muted mb-1 small">รวมยอดเบิกออกสะสม</p><h3 class="fw-bold mb-0 summary-value-red">${totalOut} <span class="fs-6 text-muted fw-normal">ชิ้น</span></h3></div><div class="icon-box icon-red"><i class="bi bi-arrow-up-short fs-2"></i></div></div></div>
+          <div class="col-md-3"><div class="summary-card"><div><p class="text-muted mb-1 small">สินค้าเสี่ยง/หมดอายุ</p><h3 class="fw-bold mb-0 summary-value-warning">${atRiskCount}</h3></div><div class="icon-box icon-warning"><i class="bi bi-exclamation-triangle-fill"></i></div></div></div>
+        </div>
+      `;
+      let urgentAlertHtml = '';
+      if(atRiskCount > 0) {
+          urgentAlertHtml = `<div class="alert-urgent-box"><h6>🔔 🚨 รายการด่วนที่ต้องจัดการ (&lt;= 180 วัน)</h6><ul>${urgentListHtml}</ul></div>`;
+      }
+
+      let alertHtml = '';
+      if (counts['Expired'] > 0) alertHtml += `<div class="alert alert-dark alert-custom border-dark mb-3"><i class="bi bi-x-octagon-fill text-dark me-2 fs-5"></i> <b>ด่วน!</b> พบสินค้าหมดอายุจำนวน <span class="badge bg-dark">${counts['Expired']}</span> รายการ กรุณาตรวจสอบ</div>`;
+      if (counts['Critical'] > 0) alertHtml += `<div class="alert alert-danger alert-custom border-danger mb-3"><i class="bi bi-exclamation-triangle-fill text-danger me-2 fs-5"></i> <b>วิกฤต:</b> พบสินค้าใกล้หมดอายุ (&lt; 30 วัน) จำนวน <span class="badge bg-danger">${counts['Critical']}</span> รายการ</div>`;
+      if (counts['Near Expiry'] > 0) alertHtml += `<div class="alert alert-warning alert-custom border-warning mb-3"><i class="bi bi-info-circle-fill text-dark me-2 fs-5"></i> <b>แจ้งเตือน:</b> พบสินค้าใกล้หมดอายุ (30-90 วัน) จำนวน <span class="badge bg-warning text-dark">${counts['Near Expiry']}</span> รายการ</div>`;
+      
+      document.getElementById('overview-alerts-container').innerHTML = topSummaryHtml + urgentAlertHtml + alertHtml;
+      document.getElementById('dashboard-cards').innerHTML = `
+        <div class="col-md-4"><div class="dashboard-card card-normal"><i class="bi bi-check-circle-fill icon-bg text-white"></i><h5>สถานะปกติ (&gt; 180 วัน)</h5><h2>${counts['Normal']}</h2><p class="mb-0 opacity-75">รายการสินค้า</p></div></div>
+        <div class="col-md-4"><div class="dashboard-card card-warning"><i class="bi bi-shield-exclamation icon-bg text-dark"></i><h5>เฝ้าระวัง (90-180 วัน)</h5><h2>${counts['Warning']}</h2><p class="mb-0 opacity-75">รายการสินค้า</p></div></div>
+        <div class="col-md-4"><div class="dashboard-card card-near"><i class="bi bi-clock-history icon-bg text-white"></i><h5>ใกล้หมดอายุ (30-90 วัน)</h5><h2>${counts['Near Expiry']}</h2><p class="mb-0 opacity-75">รายการสินค้า</p></div></div>
+        <div class="col-md-6 mt-4"><div class="dashboard-card card-critical"><i class="bi bi-exclamation-triangle-fill icon-bg text-white"></i><h5>วิกฤต (&lt; 30 วัน)</h5><h2>${counts['Critical']}</h2><p class="mb-0 opacity-75">รายการสินค้า</p></div></div>
+        <div class="col-md-6 mt-4"><div class="dashboard-card card-expired"><i class="bi bi-trash3-fill icon-bg text-white"></i><h5>หมดอายุแล้ว</h5><h2>${counts['Expired']}</h2><p class="mb-0 opacity-75">รายการสินค้า</p></div></div>
+      `;
+    }
+
+    function renderSearchTable() {
+      let tbody = document.getElementById('search-tbody');
+      tbody.innerHTML = '';
+      currentInventoryData.forEach(item => {
+        let badgeClass = getBadgeClass(item.status);
+        tbody.innerHTML += `<tr><td>${item.barcode}</td><td class="fw-bold">${item.name}</td><td>${item.lot}</td><td>${item.exp}</td><td class="text-primary fw-bold text-center">${item.qty}</td><td>${item.days} วัน</td><td><span class="badge ${badgeClass} px-3 py-2">${item.status}</span></td></tr>`;
+      });
+    }
+
+    function renderAlertTable() {
+      let tbody = document.getElementById('alert-tbody');
+      tbody.innerHTML = '';
+      currentInventoryData.forEach(item => {
+        if(item.days <= 180) { 
+          let badgeClass = getBadgeClass(item.status);
+          let actionBtns = '';
+          
+          if(item.managedType) {
+            actionBtns = `<span class="text-success fw-bold"><i class="bi bi-check2-all"></i> จัดการแล้ว (${item.managedType})</span>`;
+            if (item.managedNote && item.managedNote !== '-') actionBtns += `<br><small class="text-muted d-block mt-1">รายละเอียด: ${item.managedNote}</small>`;
+            if (item.managedUser) actionBtns += `<small class="text-secondary d-block mt-1" style="font-size: 0.8em;">ผู้บันทึก: ${item.managedUser}</small>`;
+          } else {
+            if (currentUserRole === 'Viewer') {
+              actionBtns = `<span class="text-muted"><i class="bi bi-clock-history"></i> รอดำเนินการ</span>`;
+            } else {
+              actionBtns = `
+                <button class="btn btn-sm btn-info text-white me-1 fw-bold" onclick="doAction('${item.barcode}', '${item.name}', '${item.lot}', '${item.exp}', '${item.status}', 'รับทราบ')">รับทราบ</button>
+                <button class="btn btn-sm btn-warning fw-bold" onclick="openManageModal('${item.barcode}', '${item.name}', '${item.lot}', '${item.exp}', '${item.status}')">จัดการ</button>
+              `;
+            }
+          }
+          tbody.innerHTML += `<tr><td>${item.barcode}</td><td class="fw-bold">${item.name}</td><td>${item.lot}</td><td>${item.exp}</td><td class="text-danger fw-bold text-center">${item.qty}</td><td><span class="badge ${badgeClass} px-2 py-1 mb-1">${item.status}</span><br><small class="text-muted">เหลือ ${item.days} วัน</small></td><td>${actionBtns}</td></tr>`;
+        }
+      });
+    }
+
+    // ปรับปรุงระบบโหลดหน้าจัดการผู้ใช้: โหลดทั้งรายชื่อผู้ใช้และประวัติล็อกอินพร้อมกัน
+    function loadUsers() {
+      if (currentUserRole !== 'Admin') return;
+      Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      
+      google.script.run.withSuccessHandler(users => {
+        let tbody = document.getElementById('users-tbody');
+        tbody.innerHTML = '';
+        users.forEach(u => {
+          let badgeClass = 'bg-secondary';
+          if (u.role === 'Admin') badgeClass = 'bg-danger';
+          else if (u.role === 'Staff') badgeClass = 'bg-primary';
+          else if (u.role === 'Viewer') badgeClass = 'bg-info text-dark';
+          
+          tbody.innerHTML += `<tr><td class="fw-bold">${u.username}</td><td>${u.displayName}</td><td><span class="badge ${badgeClass} px-3 py-1">${u.role}</span></td></tr>`;
+        });
+        
+        // โหลดประวัติการเข้าสู่ระบบต่อทันที
+        google.script.run.withSuccessHandler(historyData => {
+          let hTbody = document.getElementById('historyTableBody');
+          hTbody.innerHTML = '';
+          historyData.forEach(row => {
+            let date = row[0] ? new Date(row[0]).toLocaleString('th-TH') : '-';
+            let badgeClass = (row[2] === 'สำเร็จ' || row[2] === 'Success') ? 'bg-success' : 'bg-danger';
+            hTbody.innerHTML += `<tr><td>${date}</td><td class="fw-bold">${row[1]}</td><td><span class="badge ${badgeClass} text-white px-2 py-1">${row[2]}</span></td></tr>`;
+          });
+          Swal.close();
+        }).getLoginHistory();
+        
+      }).getUsersList();
+    }
+
+    function createNewUser() {
+      if (currentUserRole !== 'Admin') return Swal.fire('ข้อผิดพลาด', 'คุณไม่มีสิทธิ์ในการสร้างบัญชีผู้ใช้งาน', 'error');
+      
+      let username = document.getElementById('u-username').value.trim();
+      let password = document.getElementById('u-password').value.trim();
+      let displayName = document.getElementById('u-display').value.trim();
+      let role = document.getElementById('u-role').value;
+      
+      if (!username || !password || !displayName || !role) return Swal.fire('คำเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง', 'warning');
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) return Swal.fire('คำเตือน', 'Username ต้องใช้ภาษาอังกฤษ ตัวเลข หรืออักขระพิเศษ (_) เท่านั้น', 'warning');
+
+      Swal.fire({ title: 'กำลังสร้างบัญชี...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      
+      google.script.run.withSuccessHandler(res => {
+        if (res.success) {
+          Swal.fire('สำเร็จ', 'สร้างบัญชีผู้ใช้ใหม่เรียบร้อยแล้ว', 'success');
+          document.getElementById('u-username').value = '';
+          document.getElementById('u-password').value = '';
+          document.getElementById('u-display').value = '';
+          loadUsers(); 
+        } else {
+          Swal.fire('ข้อผิดพลาด', res.message, 'error');
+        }
+      }).createUser({ username: username, password: password, displayName: displayName, role: role });
+    }
+
+    function filterTable(tableId, query) {
+      let filter = query.toUpperCase();
+      let trs = document.getElementById(tableId).getElementsByTagName('tbody')[0].getElementsByTagName("tr");
+      for (let i = 0; i < trs.length; i++) {
+        let rowText = trs[i].textContent || trs[i].innerText;
+        if (rowText.toUpperCase().indexOf(filter) > -1) trs[i].style.display = "";
+        else trs[i].style.display = "none";
+      }
+    }
+
+    function getBadgeClass(status) {
+      switch(status) {
+        case 'Normal': return 'badge-normal';
+        case 'Warning': return 'badge-warning';
+        case 'Near Expiry': return 'badge-near';
+        case 'Critical': return 'badge-critical';
+        case 'Expired': return 'badge-expired';
+        default: return 'bg-secondary';
+      }
+    }
+
+    function doAction(barcode, name, lot, exp, status, type) {
+      document.getElementById('ac-barcode').value = barcode;
+      document.getElementById('ac-name').value = name;
+      document.getElementById('ac-lot').value = lot;
+      document.getElementById('ac-exp').value = exp;
+      document.getElementById('ac-status').value = status; 
+      document.getElementById('ac-note').value = '-';
+      submitAction(type);
+    }
+
+    function openManageModal(barcode, name, lot, exp, status) {
+      document.getElementById('ac-barcode').value = barcode;
+      document.getElementById('ac-name').value = name;
+      document.getElementById('ac-lot').value = lot;
+      document.getElementById('ac-exp').value = exp;
+      document.getElementById('ac-status').value = status; 
+      document.getElementById('ac-note').value = '';
+      new bootstrap.Modal(document.getElementById('actionModal')).show();
+    }
+
+    function submitAction(type) {
+      let data = {
+        barcode: document.getElementById('ac-barcode').value,
+        productName: document.getElementById('ac-name').value,
+        lotNo: document.getElementById('ac-lot').value,
+        expDate: document.getElementById('ac-exp').value,
+        status: document.getElementById('ac-status').value, 
+        actionType: type,
+        note: document.getElementById('ac-note').value,
+        user: currentUser // เปลี่ยนกลับมาบันทึก Username ไว้เป็น Key หลัก
+      };
+      Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      google.script.run.withSuccessHandler(() => {
+        Swal.fire('สำเร็จ', 'บันทึกการจัดการเรียบร้อย', 'success');
+        let modal = bootstrap.Modal.getInstance(document.getElementById('actionModal'));
+        if(modal) modal.hide();
+        loadInventory(); 
+      }).saveExpiryAction(data);
+    }
+
+    function loadReport() {
+      let st = document.getElementById('r-start').value;
+      let en = document.getElementById('r-end').value;
+      Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+      google.script.run.withSuccessHandler(res => {
+        currentReportData = res;
+        let searchKeyword = document.getElementById('reportSearchInput').value.toLowerCase().trim();
+        let tbody = document.getElementById('monthly-tbody');
+        tbody.innerHTML = '';
+        let currentTotalQty = 0;
+
+        res.forEach(r => {
+          let isMatch = true;
+          if (searchKeyword !== '') {
+            let nameMatch = (r.name || '').toLowerCase().includes(searchKeyword);
+            let barcodeMatch = (r.barcode || '').toString().toLowerCase().includes(searchKeyword);
+            let lotMatch = (r.lot || '').toString().toLowerCase().includes(searchKeyword);
+            isMatch = nameMatch || barcodeMatch || lotMatch;
+          }
+
+          if (isMatch) {
+            let itemQty = parseFloat(r.qty) || 0;
+            let displayQty = '';
+            let qtyColor = '';
+
+            if (r.type === 'IN') {
+              currentTotalQty += itemQty;
+              displayQty = '+ ' + r.qty;
+              qtyColor = 'text-success'; 
+            } else if (r.type === 'OUT') {
+              currentTotalQty -= itemQty;
+              displayQty = '- ' + r.qty;
+              qtyColor = 'text-danger'; 
+            } else displayQty = r.qty;
+
+            let typeColor = r.type === 'IN' ? 'text-success' : 'text-danger';
+            let typeIcon = r.type === 'IN' ? '<i class="bi bi-box-arrow-in-down"></i>' : '<i class="bi bi-box-arrow-up"></i>';
+            tbody.innerHTML += `<tr><td>${r.date.substring(0,10)}</td><td class="fw-bold ${typeColor}">${typeIcon} ${r.type}</td><td>${r.barcode}</td><td class="fw-bold">${r.name}</td><td>${r.lot}</td><td class="text-center fw-bold ${qtyColor}">${displayQty}</td><td class="text-center fw-bold text-primary">${r.balance}</td><td>${r.user}</td></tr>`;
+          }
+        });
+        
+        let tfoot = document.getElementById('monthly-tfoot');
+        if (tbody.innerHTML !== '') {
+          tfoot.classList.remove('hidden');
+          let totalColorClass = currentTotalQty >= 0 ? 'text-success' : 'text-danger';
+          document.getElementById('monthly-total-qty').innerHTML = `<span class="${totalColorClass}">${currentTotalQty.toLocaleString()}</span>`;
+        } else tfoot.classList.add('hidden');
+
+        Swal.close();
+      }).getTransactionsByDate(st, en);
+    }
+
+    function generatePDF(filename) {
+      let element = document.getElementById('pdf-content');
+      element.parentElement.style.display = 'block';
+      let opt = {
+        margin:       0.5,
+        filename:     filename + '.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'in', format: 'A4', orientation: 'landscape' } 
+      };
+      html2pdf().set(opt).from(element).save().then(() => {
+        element.parentElement.style.display = 'none'; 
+      });
+    }
+
+    function printMonthlyReport() {
+      document.getElementById('pdf-title').innerText = "รายงานความเคลื่อนไหวสินค้าประจำเดือน";
+      document.getElementById('pdf-subtitle').innerText = `ตั้งแต่วันที่ ${document.getElementById('r-start').value} ถึง ${document.getElementById('r-end').value}`;
+      document.getElementById('pdf-thead').innerHTML = `<tr><th>วันที่</th><th>ประเภท</th><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>Lot No.</th><th style="text-align: center;">จำนวน</th><th style="text-align: center;">คงเหลือ</th><th>ผู้ทำรายการ</th></tr>`;
+      let tableRows = document.getElementById('monthly-tbody').innerHTML;
+      let cleanRows = tableRows.replace(/<i[^>]*><\/i>/g, "");
+      document.getElementById('pdf-tbody').innerHTML = cleanRows;
+      let tfootRows = document.getElementById('monthly-tfoot').innerHTML;
+      document.getElementById('pdf-tfoot').innerHTML = tfootRows.replace(/<[^>]*>?/gm, (match) => {
+        if(match.includes('tr') || match.includes('td')) return match;
+        return '';
+      });
+      generatePDF('Monthly_Movement_Report');
+    }
+
+    function printAlertReport() {
+      document.getElementById('pdf-title').innerText = "รายงานการจัดการสินค้าที่อายุไม่ถึง 180 วัน";
+      let today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('pdf-subtitle').innerText = `ข้อมูล ณ วันที่ ${today}`;
+      document.getElementById('pdf-thead').innerHTML = `<tr><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>Lot No.</th><th>หมดอายุ</th><th style="text-align: center;">จำนวน</th><th>สถานะสินค้า (เหลือเวลา)</th><th>การจัดการ</th><th>ผู้บันทึก</th></tr>`;
+        
+      let tbodyHtml = '';
+      currentInventoryData.forEach(item => {
+        if(item.days <= 180) {
+          let actStatus = item.managedType ? `จัดการแล้ว (${item.managedType})` : 'ยังไม่จัดการ';
+          if(item.managedNote && item.managedNote !== '-') actStatus += `<br><small style="color: #666;">รายละเอียด: ${item.managedNote}</small>`;
+          let statusDisplay = `<b>${item.status}</b><br><small style="color: #666;">(เหลือ ${item.days} วัน)</small>`;
+          let userDisplay = item.managedUser ? item.managedUser : '-';
+
+          tbodyHtml += `<tr><td>${item.barcode}</td><td><b>${item.name}</b></td><td>${item.lot}</td><td>${item.exp}</td><td style="text-align: center; color: #dc3545; font-weight: bold;">${item.qty}</td><td>${statusDisplay}</td><td>${actStatus}</td><td>${userDisplay}</td></tr>`;
+        }
+      });
+      document.getElementById('pdf-tbody').innerHTML = tbodyHtml;
+      document.getElementById('pdf-tfoot').innerHTML = ''; 
+      generatePDF('Alert_Stock_Report');
+    }
+  </script>
+</body>
+</html>
