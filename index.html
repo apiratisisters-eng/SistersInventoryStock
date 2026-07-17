@@ -1067,7 +1067,9 @@
 
     async function loadReport() {
       let st = new Date(document.getElementById('r-start').value);
+      st.setHours(0, 0, 0, 0); 
       let en = new Date(document.getElementById('r-end').value);
+      en.setHours(23, 59, 59, 999); 
       
       Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
       
@@ -1080,6 +1082,22 @@
         tbody.innerHTML = '';
         let currentTotalQty = 0;
 
+        // 1. คำนวณยอดสะสมจากประวัติทั้งหมด โดยใช้ ชื่อสินค้า + Lot เป็น Key
+        let balances = {};
+        data.transactions.forEach(r => {
+           let key = r.name + "_" + r.lot;
+           if (balances[key] === undefined) balances[key] = 0;
+           
+           let itemQty = parseFloat(r.qty) || 0;
+           if (r.type === 'IN') {
+               balances[key] += itemQty;
+           } else if (r.type === 'OUT') {
+               balances[key] -= itemQty;
+           }
+           r.runningBalance = balances[key]; // เก็บยอดคงเหลือบรรทัดนี้ไว้
+        });
+
+        // 2. กรองข้อมูลตามวันที่ที่กำหนด
         let filteredData = data.transactions.filter(r => {
            let rDate = new Date(r.date);
            return rDate >= st && rDate <= en;
@@ -1111,7 +1129,9 @@
 
             let typeColor = r.type === 'IN' ? 'text-success' : 'text-danger';
             let typeIcon = r.type === 'IN' ? '<i class="bi bi-box-arrow-in-down"></i>' : '<i class="bi bi-box-arrow-up"></i>';
-            tbody.innerHTML += `<tr><td>${String(r.date).substring(0,10)}</td><td class="fw-bold ${typeColor}">${typeIcon} ${r.type}</td><td>${r.barcode}</td><td class="fw-bold">${r.name}</td><td>${r.lot}</td><td class="text-center fw-bold ${qtyColor}">${displayQty}</td><td class="text-center fw-bold text-primary">-</td><td>${r.user}</td></tr>`;
+            
+            // อัปเดตช่องคงเหลือเป็น r.runningBalance แทนเครื่องหมาย "-"
+            tbody.innerHTML += `<tr><td>${String(r.date).substring(0,10)}</td><td class="fw-bold ${typeColor}">${typeIcon} ${r.type}</td><td>${r.barcode}</td><td class="fw-bold">${r.name}</td><td>${r.lot}</td><td class="text-center fw-bold ${qtyColor}">${displayQty}</td><td class="text-center fw-bold text-primary">${r.runningBalance}</td><td>${r.user}</td></tr>`;
           }
         });
         
