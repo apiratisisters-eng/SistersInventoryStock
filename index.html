@@ -488,6 +488,11 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
   <script>
+    // ===============================================================
+    // ★★★ จุดที่ต้องแก้ไขเพื่อให้เข้ากับลิ้งก์ Google Sheet ของคุณ ★★★
+    // ให้นำ API URL ที่ได้จากการตั้งค่า Sheety ใหม่มาใส่ที่ตัวแปรนี้
+    // (อ่านวิธีสร้าง API URL ด้านล่างโค้ดนี้)
+    // ===============================================================
     const SHEETY_API_URL = "https://api.sheety.co/7e182e4eaf535e0df34f4beda4da8029/stockV8"; 
 
     let currentUser = '';
@@ -566,7 +571,6 @@
         if (!response.ok) throw new Error('API Error');
         let data = await response.json();
         
-        // Fix 1: แปลงเป็น String เสมอเพื่อป้องกันบั๊ก Google Sheet ปรับตัวเลขรหัสผ่านไปเป็น Int
         let foundUser = data.users.find(user => String(user.username) === String(u) && String(user.password) === String(p));
         
         if(foundUser) {
@@ -758,14 +762,12 @@
       }
     }
 
-    // Fix 2: แก้บั๊กวันที่หากผู้ใช้งานใส่ Date เป็นรูปแบบไทยใน Google Sheet ให้แปลงค่าได้ถูกต้อง
     function calculateDays(expDateStr) {
       if(!expDateStr) return 999;
       let exp;
       if (expDateStr.includes('/')) {
-        let parts = expDateStr.split(' ')[0].split('/'); // รองรับทั้ง DD/MM/YYYY และ DD/MM/YYYY HH:MM
+        let parts = expDateStr.split(' ')[0].split('/'); 
         if(parts.length === 3) {
-            // สมมติฐานว่า Format คือ วัน/เดือน/ปี
             exp = new Date(parts[2], parts[1] - 1, parts[0]);
         } else {
             exp = new Date(expDateStr);
@@ -775,14 +777,13 @@
       }
       
       let today = new Date();
-      // เซ็ตเวลาให้เป็นเที่ยงคืนตรง เพื่อตัดปัญหาเศษชั่วโมง
       today.setHours(0,0,0,0);
       exp.setHours(0,0,0,0);
       return Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
     }
 
     function determineStatus(days) {
-      if(isNaN(days)) return 'Unknown'; // ดักจับ Error หากแปลงวันไม่ได้
+      if(isNaN(days)) return 'Unknown'; 
       if(days < 0) return 'Expired';
       if(days <= 30) return 'Critical';
       if(days <= 90) return 'Near Expiry';
@@ -928,7 +929,6 @@
             if (currentUserRole === 'Viewer') {
               actionBtns = `<span class="text-muted"><i class="bi bi-clock-history"></i> รอดำเนินการ</span>`;
             } else {
-              // เปลี่ยนเครื่องหมายคำพูด (Quotes) เพื่อไม่ให้บั๊กเวลาชื่อสินค้าเว้นวรรค
               let escName = item.name.replace(/'/g, "\\'");
               actionBtns = `
                 <button class="btn btn-sm btn-info text-white me-1 fw-bold" onclick="doAction('${item.id}', '${item.barcode}', '${escName}', '${item.lot}', '${item.exp}', '${item.status}', 'รับทราบ')">รับทราบ</button>
@@ -1027,7 +1027,6 @@
       }
     }
 
-    // Fix 3: เพิ่มการส่งค่า name และ exp ลงใน Input เพื่อให้ API บันทึกได้ครบถ้วน ไม่ Error
     function doAction(id, barcode, name, lot, exp, status, type) {
       document.getElementById('ac-id').value = id;
       document.getElementById('ac-barcode').value = barcode;
